@@ -1,28 +1,29 @@
-import { useEffect, useState } from 'react'
-import API from './api'
+import { Routes, Route, Navigate } from 'react-router-dom'
+import Login from './pages/Login'
+import Dashboard from './pages/Dashboard'
+import PilihAnak from './pages/PilihAnak'
+import TumbuhKembang from './pages/TumbuhKembang'
+import PilihAnakImunisasi from './pages/PilihAnakImunisasi'
+import Imunisasi from './pages/Imunisasi'
+import Jadwal from './pages/Jadwal'
+
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('token')
+  return token ? children : <Navigate to="/login" />
+}
 
 function App() {
-  const [status, setStatus] = useState('Mengecek koneksi ke backend...')
-  const [warna, setWarna] = useState('orange')
-
-  useEffect(() => {
-    fetch('http://localhost:3000/health')
-      .then(res => res.json())
-      .then(data => {
-        setStatus('✅ Backend terhubung! Server OK')
-        setWarna('green')
-      })
-      .catch(() => {
-        setStatus('❌ Backend tidak bisa diakses. Pastikan npm run dev sudah jalan di folder backend')
-        setWarna('red')
-      })
-  }, [])
-
   return (
-    <div style={{ padding: 40, fontFamily: 'Arial' }}>
-      <h1>🏥 Posyandu App</h1>
-      <p style={{ color: warna, fontSize: 18 }}>{status}</p>
-    </div>
+    <Routes>
+      <Route path="/" element={<Navigate to="/login" />} />
+      <Route path="/login" element={<Login />} />
+      <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+      <Route path="/tumbuh-kembang" element={<PrivateRoute><PilihAnak /></PrivateRoute>} />
+      <Route path="/tumbuh-kembang/:id" element={<PrivateRoute><TumbuhKembang /></PrivateRoute>} />
+      <Route path="/imunisasi" element={<PrivateRoute><PilihAnakImunisasi /></PrivateRoute>} />
+      <Route path="/imunisasi/:id" element={<PrivateRoute><Imunisasi /></PrivateRoute>} />
+      <Route path="/jadwal" element={<PrivateRoute><Jadwal /></PrivateRoute>} />
+    </Routes>
   )
 }
 
