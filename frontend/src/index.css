@@ -9,8 +9,201 @@ html, body, #root {
   min-height: 100vh;
 }
 
+/* Smooth scrolling for anchor links (e.g. navbar -> #tentang) */
+html {
+  scroll-behavior: smooth;
+}
+
 body {
   overflow-x: hidden;
   overflow-y: auto;
   font-family: 'Noto Sans', sans-serif;
+  /* Smooth text rendering */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* ============================================================ */
+/*  ANIMATION UTILITIES                                          */
+/*  Reusable motion classes used across the app.                 */
+/*  They add ENTRANCE animations + HOVER/PRESS interactions      */
+/*  without changing the layout or placement of anything.        */
+/* ============================================================ */
+
+/* --- Keyframes --- */
+
+@keyframes pcFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pcSlideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pcSlideDown {
+  from { opacity: 0; transform: translateY(-14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pcScaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes pcWiggle {
+  0%, 100% { transform: rotate(0deg); }
+  20%      { transform: rotate(-10deg); }
+  60%      { transform: rotate(8deg); }
+  80%      { transform: rotate(-4deg); }
+}
+
+@keyframes pcShimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+
+@keyframes pcSpin {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pcFloat {
+  0%, 100% { transform: translateY(0); }
+  50%      { transform: translateY(-12px); }
+}
+
+@keyframes pcFloatSlow {
+  0%, 100% { transform: translate(0, 0); }
+  50%      { transform: translate(8px, -16px); }
+}
+
+@keyframes pcSlideLeft {
+  from { opacity: 0; transform: translateX(-30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes pcSlideRight {
+  from { opacity: 0; transform: translateX(30px); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+
+/* --- Entrance utilities --- */
+
+.pc-fade-in   { animation: pcFadeIn   0.45s ease-out both; }
+.pc-slide-up  { animation: pcSlideUp  0.45s ease-out both; }
+.pc-slide-down{ animation: pcSlideDown 0.4s ease-out both; }
+.pc-scale-in  { animation: pcScaleIn  0.35s ease-out both; }
+.pc-slide-left  { animation: pcSlideLeft  0.5s ease-out both; }
+.pc-slide-right { animation: pcSlideRight 0.5s ease-out both; }
+
+/* Stagger delays — combine with an entrance class */
+.pc-delay-1 { animation-delay:  60ms; }
+.pc-delay-2 { animation-delay: 120ms; }
+.pc-delay-3 { animation-delay: 180ms; }
+.pc-delay-4 { animation-delay: 240ms; }
+.pc-delay-5 { animation-delay: 300ms; }
+.pc-delay-6 { animation-delay: 360ms; }
+
+/* --- Hover interactions --- */
+
+/* Lift up + stronger shadow on hover (for cards) */
+.pc-hover-lift {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+  will-change: transform;
+}
+.pc-hover-lift:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 14px 30px rgba(0, 0, 0, 0.14);
+}
+
+/* Small scale up (for filter tabs, icon buttons) */
+.pc-hover-scale {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.pc-hover-scale:hover {
+  transform: translateY(-2px);
+}
+
+/* Press / active scale-down */
+.pc-press {
+  transition: transform 0.1s ease;
+}
+.pc-press:active {
+  transform: scale(0.96);
+}
+
+/* --- Sidebar menu link --- */
+.pc-sidebar-link {
+  transition: background 0.2s ease, transform 0.18s ease, color 0.2s ease;
+}
+.pc-sidebar-link:hover {
+  background: rgba(78, 114, 76, 0.10) !important;
+  transform: translateX(3px);
+}
+
+/* --- Buttons --- */
+.pc-btn {
+  transition: background 0.2s ease, color 0.2s ease,
+              transform 0.1s ease, filter 0.2s ease, box-shadow 0.2s ease;
+}
+.pc-btn:hover  { filter: brightness(1.08); box-shadow: 0 6px 16px rgba(0,0,0,0.12); }
+.pc-btn:active { transform: scale(0.97); }
+
+/* --- Bell wiggle on hover --- */
+.pc-bell {
+  transition: transform 0.2s ease;
+  transform-origin: top center;
+}
+.pc-bell:hover {
+  animation: pcWiggle 0.6s ease-in-out;
+}
+
+/* --- Focusable (accessibility ring) --- */
+.pc-focusable {
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+.pc-focusable:focus,
+.pc-focusable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px rgba(78, 114, 76, 0.28);
+}
+
+/* --- Inputs --- */
+.pc-input {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.pc-input:focus,
+.pc-input:focus-visible {
+  outline: none;
+  border-color: #4E724C !important;
+  box-shadow: 0 0 0 3px rgba(78, 114, 76, 0.18);
+}
+
+/* --- Loading shimmer (placeholder skeleton) --- */
+.pc-shimmer {
+  background: linear-gradient(90deg, #ECECEC 25%, #F6F6F6 50%, #ECECEC 75%);
+  background-size: 200% 100%;
+  animation: pcShimmer 1.4s linear infinite;
+}
+
+/* --- Spinner --- */
+.pc-spin {
+  animation: pcSpin 0.9s linear infinite;
+}
+
+/* --- Gentle floating motion for decorative elements --- */
+.pc-float       { animation: pcFloat 5s ease-in-out infinite; }
+.pc-float-slow  { animation: pcFloatSlow 8s ease-in-out infinite; }
+.pc-float-delay { animation: pcFloat 5s ease-in-out 1.5s infinite; }
+
+/* --- Respect users who prefer less motion (accessibility) --- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+  }
 }

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import API from '../api'
+import { SharedSidebar } from '../components/SidebarLayout'
 
 // Daftar lengkap vaksin standar
 const VAKSIN_STANDAR = [
@@ -74,75 +75,7 @@ export default function Imunisasi() {
       fontFamily: "'Noto Sans', sans-serif",
       display: 'flex',
     }}>
-
-      {/* SIDEBAR */}
-      <div style={{
-        width: 258,
-        minHeight: '100vh',
-        background: '#E9EFEF',
-        padding: '24px 14px',
-        flexShrink: 0,
-      }}>
-        <div style={{
-          fontWeight: 700,
-          fontSize: 28,
-          color: '#4E724C',
-          marginBottom: 30,
-          paddingLeft: 10,
-        }}>
-          PosyanduCeria
-        </div>
-
-        {[
-            { icon: '🏠', label: 'Beranda', to: '/dashboard' },
-            { icon: '📈', label: 'Tumbuh Kembang', to: '/tumbuh-kembang' },
-            { icon: '💉', label: 'Imunisasi', to: '/imunisasi' },
-            { icon: '📅', label: 'Jadwal Posyandu', to: '/jadwal' },
-            { icon: '🏥', label: 'Riwayat Kunjungan', to: '/kunjungan' },
-            { icon: '👤', label: 'Profil', to: '/profil' },
-            { icon: '⚙️', label: 'Pengaturan', to: '/pengaturan' },
-        ].map((item) => (
-          <Link
-            key={item.label}
-            to={item.to}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: 10,
-              padding: '10px 14px',
-              fontSize: 16,
-              fontWeight: 500,
-              color: '#4E724C',
-              textDecoration: 'none',
-              borderRadius: 10,
-              background: item.active ? '#CFEBD2' : 'transparent',
-              marginBottom: 4,
-            }}
-          >
-            <span style={{ fontSize: 18 }}>{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
-
-        <button
-          onClick={handleLogout}
-          style={{
-            marginTop: 30,
-            width: '100%',
-            padding: '10px 14px',
-            background: 'none',
-            border: '1px solid #4E724C',
-            borderRadius: 10,
-            color: '#4E724C',
-            fontWeight: 500,
-            fontSize: 14,
-            cursor: 'pointer',
-            fontFamily: "'Noto Sans', sans-serif",
-          }}
-        >
-          Logout
-        </button>
-      </div>
+      <SharedSidebar activePath="/imunisasi" onLogout={handleLogout} />
 
       {/* KONTEN UTAMA */}
       <div style={{ flex: 1 }}>
