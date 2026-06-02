@@ -1,53 +1,164 @@
-const { Penanganan, Balita, User } = require('../models');
+const { Penanganan, Balita, User } = require('../models')
+
+const safeStringify = (value) => {
+  if (value === undefined || value === null) return null
+  if (typeof value === 'string') return value
+  return JSON.stringify(value)
+}
+
+const buildPayload = (body = {}) => {
+  return {
+    tanggal: body.tanggal,
+    jenis_masalah: body.jenis_masalah || 'lainnya',
+    tindakan: safeStringify(body.tindakan) || 'Catatan penanganan belum diisi',
+    perkembangan: body.perkembangan || null,
+    dilakukan_oleh: body.dilakukan_oleh || 'orang_tua',
+  }
+}
 
 const getByBalita = async (req, res) => {
   try {
     const data = await Penanganan.findAll({
-      where: { balita_id: req.params.balita_id },
-      include: [{ model: User, as: 'admin', attributes: ['id', 'nama'] }],
-      order: [['tanggal', 'DESC']],
-    });
-    return res.json({ success: true, data });
+      where: {
+        balita_id: req.params.balita_id,
+      },
+      include: [
+        {
+          model: User,
+          as: 'admin',
+          attributes: ['id', 'nama'],
+        },
+      ],
+      order: [
+        ['tanggal', 'DESC'],
+        ['createdAt', 'DESC'],
+      ],
+    })
+
+    return res.json({
+      success: true,
+      data,
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
   }
-};
+}
 
 const create = async (req, res) => {
   try {
-    const balita = await Balita.findByPk(req.params.balita_id);
-    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
+    const balita = await Balita.findByPk(req.params.balita_id)
+
+    if (!balita) {
+      return res.status(404).json({
+        success: false,
+        message: 'Balita tidak ditemukan',
+      })
+    }
+
+    const payload = buildPayload(req.body)
+
+    if (!payload.tanggal) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tanggal penanganan wajib diisi',
+      })
+    }
+
     const penanganan = await Penanganan.create({
-      ...req.body,
       balita_id: req.params.balita_id,
       admin_id: req.user.id,
-    });
-    return res.status(201).json({ success: true, message: 'Data penanganan berhasil ditambahkan', data: penanganan });
+      tanggal: payload.tanggal,
+      jenis_masalah: payload.jenis_masalah,
+      tindakan: payload.tindakan,
+      perkembangan: payload.perkembangan,
+      dilakukan_oleh: payload.dilakukan_oleh,
+    })
+
+    return res.status(201).json({
+      success: true,
+      message: 'Data penanganan berhasil ditambahkan',
+      data: penanganan,
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
   }
-};
+}
 
 const update = async (req, res) => {
   try {
-    const p = await Penanganan.findByPk(req.params.id);
-    if (!p) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
-    await p.update(req.body);
-    return res.json({ success: true, message: 'Data penanganan berhasil diupdate', data: p });
+    const penanganan = await Penanganan.findByPk(req.params.id)
+
+    if (!penanganan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Data penanganan tidak ditemukan',
+      })
+    }
+
+    const payload = buildPayload(req.body)
+
+    if (!payload.tanggal) {
+      return res.status(400).json({
+        success: false,
+        message: 'Tanggal penanganan wajib diisi',
+      })
+    }
+
+    await penanganan.update({
+      tanggal: payload.tanggal,
+      jenis_masalah: payload.jenis_masalah,
+      tindakan: payload.tindakan,
+      perkembangan: payload.perkembangan,
+      dilakukan_oleh: payload.dilakukan_oleh,
+    })
+
+    return res.json({
+      success: true,
+      message: 'Data penanganan berhasil diupdate',
+      data: penanganan,
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
   }
-};
+}
 
 const remove = async (req, res) => {
   try {
-    const p = await Penanganan.findByPk(req.params.id);
-    if (!p) return res.status(404).json({ success: false, message: 'Data tidak ditemukan' });
-    await p.destroy();
-    return res.json({ success: true, message: 'Data penanganan berhasil dihapus' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
+    const penanganan = await Penanganan.findByPk(req.params.id)
 
-module.exports = { getByBalita, create, update, remove };
+    if (!penanganan) {
+      return res.status(404).json({
+        success: false,
+        message: 'Data penanganan tidak ditemukan',
+      })
+    }
+
+    await penanganan.destroy()
+
+    return res.json({
+      success: true,
+      message: 'Data penanganan berhasil dihapus',
+    })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
+  }
+}
+
+module.exports = {
+  getByBalita,
+  create,
+  update,
+  remove,
+}

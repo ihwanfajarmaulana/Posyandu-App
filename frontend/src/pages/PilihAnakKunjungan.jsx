@@ -55,50 +55,39 @@ function getAgeFilterValue(usiaBulan) {
   return '60+'
 }
 
-function getImunisasiTerakhir(item) {
-  const imunisasiTerakhir =
-    item?.imunisasi_terakhir ||
-    item?.riwayat_imunisasi?.[0] ||
-    null
-
+function getTerakhirDiukur(item) {
   return (
-    item?.nama_imunisasi_terakhir ||
-    item?.vaksin_terakhir ||
-    item?.nama_vaksin_terakhir ||
-    imunisasiTerakhir?.nama_vaksin ||
-    '-'
-  )
-}
-
-function getTanggalImunisasiTerakhir(item) {
-  const imunisasiTerakhir =
-    item?.imunisasi_terakhir ||
-    item?.riwayat_imunisasi?.[0] ||
-    null
-
-  return (
-    item?.tanggal_imunisasi_terakhir ||
-    item?.tanggal_vaksin_terakhir ||
-    imunisasiTerakhir?.tanggal_pemberian ||
+    item?.tanggal_ukur_terakhir ||
+    item?.pertumbuhan_terakhir?.tanggal_ukur ||
+    item?.riwayat_pertumbuhan?.[0]?.tanggal_ukur ||
+    item?.tanggal_kunjungan_terakhir ||
+    item?.kunjungan_terakhir?.tanggal_kunjungan ||
+    item?.kunjungan?.[0]?.tanggal_kunjungan ||
     null
   )
 }
 
-function getStatusImunisasi(item) {
-  const imunisasiTerakhir =
-    item?.imunisasi_terakhir ||
-    item?.riwayat_imunisasi?.[0] ||
-    null
+function getTindakanText(item) {
+  if (item?.pertumbuhan_terakhir) {
+    const p = item.pertumbuhan_terakhir
+    const detail = []
 
-  if (item?.status_imunisasi) return item.status_imunisasi
-  if (imunisasiTerakhir) return 'Sudah Imunisasi'
-  return 'Perlu Dicek'
+    if (p.berat_badan) detail.push(`BB ${p.berat_badan} kg`)
+    if (p.tinggi_badan) detail.push(`TB ${p.tinggi_badan} cm`)
+    if (p.lingkar_kepala) detail.push(`LK ${p.lingkar_kepala} cm`)
+
+    return detail.length > 0
+      ? `Pengukuran (${detail.join(', ')}) dan Imunisasi`
+      : 'Pengukuran (BB, TB, Lingkar Kepala) dan Imunisasi'
+  }
+
+  return 'Pengukuran (BB, TB, Lingkar Kepala) dan Imunisasi'
 }
 
-export default function PilihAnakImunisasi() {
+export default function PilihAnakKunjungan() {
   const navigate = useNavigate()
 
-  const [balitaList, setBalitaList] = useState([])
+  const [anakData, setAnakData] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [search, setSearch] = useState('')
@@ -116,7 +105,7 @@ export default function PilihAnakImunisasi() {
   useEffect(() => {
     let mounted = true
 
-    const fetchBalita = async () => {
+    const loadAnak = async () => {
       setLoading(true)
       setError('')
 
@@ -131,7 +120,7 @@ export default function PilihAnakImunisasi() {
             ? res.data.data
             : []
 
-        setBalitaList(list)
+        setAnakData(list)
       } catch (err) {
         if (mounted) {
           setError(err.response?.data?.message || 'Gagal memuat data anak.')
@@ -141,7 +130,7 @@ export default function PilihAnakImunisasi() {
       }
     }
 
-    fetchBalita()
+    loadAnak()
 
     return () => {
       mounted = false
@@ -151,7 +140,7 @@ export default function PilihAnakImunisasi() {
   const filteredData = useMemo(() => {
     const keyword = search.trim().toLowerCase()
 
-    return balitaList.filter((item) => {
+    return anakData.filter((item) => {
       const cocokSearch =
         !keyword ||
         item?.nama?.toLowerCase().includes(keyword) ||
@@ -165,7 +154,7 @@ export default function PilihAnakImunisasi() {
 
       return cocokSearch && cocokUsia
     })
-  }, [balitaList, search, ageFilter])
+  }, [anakData, search, ageFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredData.length / pageSize))
 
@@ -192,7 +181,7 @@ export default function PilihAnakImunisasi() {
       <header className="page-header">
         <div>
           <h1>Pilih Data Anak</h1>
-          <p>Pilih anak yang ingin dilihat riwayat imunisasinya.</p>
+          <p>Pilih anak untuk melihat riwayat kunjungan posyandu.</p>
         </div>
 
         <button type="button" className="user-pill" onClick={() => navigate('/profil')}>
@@ -232,9 +221,9 @@ export default function PilihAnakImunisasi() {
                   <th>Nama Anak</th>
                   <th>Usia</th>
                   <th>Nama Ibu</th>
-                  <th>Imunisasi Terakhir</th>
-                  <th>Tanggal</th>
-                  <th>Status</th>
+                  <th>Terakhir Diukur</th>
+                  <th>Tindakan</th>
+                  <th>Aksi</th>
                 </tr>
               </thead>
 
@@ -253,13 +242,10 @@ export default function PilihAnakImunisasi() {
                   </tr>
                 ) : (
                   paginatedData.map((item) => {
-                    const namaImunisasi = getImunisasiTerakhir(item)
-                    const tanggalImunisasi = getTanggalImunisasiTerakhir(item)
-                    const status = getStatusImunisasi(item)
-                    const sudah = status === 'Sudah Imunisasi'
+                    const lastMeasureDate = getTerakhirDiukur(item)
 
                     return (
-                      <tr key={item.id} onClick={() => navigate(`/imunisasi/${item.id}`)}>
+                      <tr key={item.id}>
                         <td>
                           <div className="child-cell">
                             <div className="avatar">
@@ -282,12 +268,18 @@ export default function PilihAnakImunisasi() {
 
                         <td>{formatUsia(item?.usia_bulan)}</td>
                         <td>{item?.nama_ibu || item?.orang_tua?.nama || '-'}</td>
-                        <td>{namaImunisasi}</td>
-                        <td>{tanggalImunisasi ? formatTanggal(tanggalImunisasi) : '-'}</td>
                         <td>
-                          <span className={`status-badge ${sudah ? 'success' : 'warning'}`}>
-                            {status}
-                          </span>
+                          {lastMeasureDate ? formatTanggal(lastMeasureDate) : 'Belum diukur'}
+                        </td>
+                        <td>{getTindakanText(item)}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="action-btn"
+                            onClick={() => navigate(`/riwayatkunjungan/${item.id}`)}
+                          >
+                            Riwayat
+                          </button>
                         </td>
                       </tr>
                     )
@@ -461,15 +453,6 @@ export default function PilihAnakImunisasi() {
           vertical-align: middle;
         }
 
-        tbody tr {
-          cursor: pointer;
-          transition: 0.18s ease;
-        }
-
-        tbody tr:hover {
-          background: rgba(243, 222, 210, 0.38);
-        }
-
         .child-cell {
           display: flex;
           align-items: center;
@@ -508,26 +491,17 @@ export default function PilihAnakImunisasi() {
           font-size: 13px;
         }
 
-        .status-badge {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          min-height: 30px;
-          padding: 0 14px;
-          border-radius: 999px;
+        .action-btn {
+          border: none;
+          min-height: 34px;
+          padding: 0 18px;
+          border-radius: 9px;
+          background: #3f6b47;
+          color: white;
+          font-family: inherit;
           font-size: 13px;
           font-weight: 800;
-          white-space: nowrap;
-        }
-
-        .status-badge.success {
-          background: #DDF3DF;
-          color: #2F613B;
-        }
-
-        .status-badge.warning {
-          background: #EFE8DD;
-          color: #6B5247;
+          cursor: pointer;
         }
 
         .empty-cell {

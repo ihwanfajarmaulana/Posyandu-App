@@ -52,7 +52,7 @@ router.delete('/imunisasi/:id', authenticate, authorize('admin'), imunisasiCtrl.
 
 // KUNJUNGAN
 router.get('/kunjungan', authenticate, kunjunganCtrl.getAll);
-router.post('/kunjungan', authenticate, authorize('admin'), kunjunganCtrl.create);
+router.post('/kunjungan', authenticate, kunjunganCtrl.create);
 router.put('/kunjungan/:id', authenticate, authorize('admin'), kunjunganCtrl.update);
 router.delete('/kunjungan/:id', authenticate, authorize('admin'), kunjunganCtrl.remove);
 

@@ -1,56 +1,49 @@
 import { useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import API from '../api'
 
 export default function Login() {
-  const [activeTab, setActiveTab] = useState('signin')
-  const [email, setEmail] = useState('')
-  const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const navigate = useNavigate()
+
+  const [mode, setMode] = useState('login')
   const [loading, setLoading] = useState(false)
-  const [nama, setNama] = useState('')
-  const [konfirmPassword, setKonfirmPassword] = useState('')
-  const [sukses, setSukses] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
 
-  const handleRegister = async (e) => {
-  e.preventDefault()
-  setError('')
-  setSukses('')
+  const [loginEmail, setLoginEmail] = useState('')
+  const [loginPassword, setLoginPassword] = useState('')
 
-  if (password !== konfirmPassword) {
-    setError('Password dan konfirmasi password tidak sama')
-    return
+  const [namaAwal, setNamaAwal] = useState('')
+  const [namaAkhir, setNamaAkhir] = useState('')
+  const [noTelepon, setNoTelepon] = useState('')
+  const [registerEmail, setRegisterEmail] = useState('')
+  const [alamat, setAlamat] = useState('')
+  const [registerPassword, setRegisterPassword] = useState('')
+  const [konfirmasiPassword, setKonfirmasiPassword] = useState('')
+  const [agree, setAgree] = useState(false)
+
+  const switchMode = (nextMode) => {
+    setMode(nextMode)
+    setError('')
+    setSuccess('')
   }
-
-  if (password.length < 6) {
-    setError('Password minimal 6 karakter')
-    return
-  }
-
-  setLoading(true)
-  try {
-    await API.post('/auth/register', { nama, email, password })
-    setSukses('Registrasi berhasil! Silakan login.')
-    setNama('')
-    setEmail('')
-    setPassword('')
-    setKonfirmPassword('')
-    setTimeout(() => setActiveTab('signin'), 2000)
-  } catch (_) {
-    setError('Registrasi gagal. Email mungkin sudah terdaftar.')
-  } finally {
-    setLoading(false)
-  }
-}
 
   const handleLogin = async (e) => {
     e.preventDefault()
     setError('')
+    setSuccess('')
     setLoading(true)
+
     try {
-      const res = await API.post('/auth/login', { email, password })
+      const res = await API.post('/auth/login', {
+        email: loginEmail,
+        password: loginPassword,
+      })
+
       localStorage.setItem('token', res.data.token)
       localStorage.setItem('user', JSON.stringify(res.data.data))
-      window.location.href = '/dashboard'
+
+      navigate('/dashboard')
     } catch (_) {
       setError('Email atau password salah')
     } finally {
@@ -58,515 +51,868 @@ export default function Login() {
     }
   }
 
+  const handleRegister = async (e) => {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    const nama = `${namaAwal} ${namaAkhir}`.trim()
+
+    if (!namaAwal.trim()) {
+      setError('Nama awal wajib diisi')
+      return
+    }
+
+    if (!registerEmail.trim()) {
+      setError('Email wajib diisi')
+      return
+    }
+
+    if (!alamat.trim()) {
+      setError('Alamat lengkap wajib diisi')
+      return
+    }
+
+    if (registerPassword.length < 6) {
+      setError('Password minimal 6 karakter')
+      return
+    }
+
+    if (registerPassword !== konfirmasiPassword) {
+      setError('Password dan konfirmasi password tidak sama')
+      return
+    }
+
+    if (!agree) {
+      setError('Kamu harus menyetujui syarat dan ketentuan terlebih dahulu')
+      return
+    }
+
+    setLoading(true)
+
+    try {
+      await API.post('/auth/register', {
+        nama,
+        email: registerEmail,
+        password: registerPassword,
+        no_telepon: noTelepon,
+        alamat,
+      })
+
+      setSuccess('Pendaftaran berhasil! Silakan masuk menggunakan akun kamu.')
+      setNamaAwal('')
+      setNamaAkhir('')
+      setNoTelepon('')
+      setRegisterEmail('')
+      setAlamat('')
+      setRegisterPassword('')
+      setKonfirmasiPassword('')
+      setAgree(false)
+
+      setTimeout(() => {
+        switchMode('login')
+      }, 1200)
+    } catch (_) {
+      setError('Pendaftaran gagal. Email mungkin sudah terdaftar.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
-    <div style={{
-        width: '100%',
-        height: '100%',
-        display: 'flex',
-        fontFamily: "'Noto Sans', sans-serif",
-        overflow: 'hidden',
-        position: 'fixed',
-        top: 0,
-        left: 0,
-    }}>
+    <div className="auth-page">
+      <aside className="auth-left">
+        <div className="left-content">
+          <button type="button" className="auth-brand" onClick={() => navigate('/')}>
+            PosyanduCeria
+          </button>
 
-      {/* ── PANEL KIRI ── */}
-      <div style={{
-        width: '30%',
-        height: '100%',
-        background: '#E9EFEF',
-        display: 'flex',
-        flexDirection: 'column',
-        padding: '4vh 3vw',
-        boxSizing: 'border-box',
-        overflowY: 'auto',
-      }}>
+          <h1>Pantau kesehatan dan tumbuh kembang si kecil dengan lebih mudah</h1>
 
-        {/* Logo */}
-        <div style={{
-          fontWeight: 700,
-          fontSize: 'clamp(20px, 2vw, 30px)',
-          color: '#4E724C',
-          marginBottom: '3vh',
-          marginTop: '5vh'
-        }}>
-          PosyanduCeria
-        </div>
+          <p>
+            Bersama posyandu, wujudkan generasi sehat dan cerdas sejak dini
+          </p>
 
-        {/* Tagline besar */}
-        <div style={{
-          fontWeight: 500,
-          fontSize: 'clamp(16px, 1.6vw, 22px)',
-          lineHeight: '1.4',
-          color: '#4E724C',
-          marginBottom: '0.5vh',
-        }}>
-          Pantau kesehatan dan tumbuh kembang si kecil dengan lebih mudah
-        </div>
-
-        {/* Tagline kecil */}
-        <div style={{
-          fontWeight: 400,
-          fontSize: 'clamp(12px, 1vw, 15px)',
-          lineHeight: '1.5',
-          color: '#4E724C',
-          marginBottom: '10vh',
-        }}>
-          Bersama posyandu, wujudkan generasi sehat dan cerdas sejak dini
-        </div>
-
-        {/* Gambar bulat */}
-        <div style={{
-          width: 'clamp(300px, 18vw, 280px)',
-          height: 'clamp(300px, 18vw, 280px)',
-          borderRadius: '50%',
-          overflow: 'hidden',
-          background: '#c8d8c8',
-          alignSelf: 'center',
-          marginBottom: '10vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          flexShrink: 0,
-        }}>
-          <img
-            src="/family.png"
-            alt="Keluarga"
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={(e) => {
-              e.target.style.display = 'none'
-              e.target.parentNode.innerHTML = '<span style="font-size:60px">👨‍👩‍👧‍👦</span>'
-            }}
-          />
-        </div>
-
-        {/* Card fitur */}
-        <div style={{
-          background: '#FFF5F8',
-          borderRadius: 15,
-          padding: '2vh 1.5vw',
-          display: 'flex',
-          flexDirection: 'column',
-          gap: '1.5vh',
-        }}>
-
-          {[
-            { icon: '📈', title: 'Pantau pertumbuhan anak', desc: 'Lihat grafik dan status gizi anak dengan mudah' },
-            { icon: '🛡️', title: 'Imunisasi Terjadwal', desc: 'Pantau riwayat imunisasi agar anak tidak terlambat vaksin' },
-            { icon: '🏥', title: 'Riwayat Kunjungan', desc: 'Catat kunjungan dan lihat keaktifan anak di posyandu' },
-          ].map((item, i) => (
-            <div key={i} style={{ display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-              <div style={{ fontSize: 'clamp(16px, 1.4vw, 20px)', marginTop: 2, flexShrink: 0 }}>
-                {item.icon}
-              </div>
-              <div>
-                <div style={{
-                  fontWeight: 600,
-                  fontSize: 'clamp(11px, 0.85vw, 13px)',
-                  color: '#4E724C',
-                }}>
-                  {item.title}
-                </div>
-                <div style={{
-                  fontSize: 'clamp(10px, 0.75vw, 11px)',
-                  color: '#4E724C',
-                  lineHeight: '1.4',
-                }}>
-                  {item.desc}
-                </div>
-              </div>
-            </div>
-          ))}
-
-        </div>
-      </div>
-
-      {/* ── PANEL KANAN ── */}
-      <div style={{
-        flex: 1,
-        height: '100%',
-        position: 'relative',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-    }}>
-
-        {/* Background atas hijau */}
-        <div style={{
-          position: 'absolute',
-          top: 0, left: 0, right: 0,
-          height: '50%',
-          background: '#4E724C',
-        }} />
-
-        {/* Background bawah pink */}
-        <div style={{
-          position: 'absolute',
-          bottom: 0, left: 0, right: 0,
-          height: '50%',
-          background: '#FFF5F8',
-        }} />
-
-        {/* Judul */}
-        <div style={{
-          position: 'absolute',
-          top: '8%',
-          left: 0, right: 0,
-          textAlign: 'center',
-          fontWeight: 700,
-          fontSize: 'clamp(22px, 3vw, 40px)',
-          color: '#E9EFEF',
-          zIndex: 1,
-          padding: '0 2vw',
-          marginTop: '3vh'
-        }}>
-          Selamat Datang di PosyanduCeria!
-        </div>
-
-        {/* Card Form */}
-        <div style={{
-          position: 'relative',
-          zIndex: 2,
-          width: 'clamp(320px, 36vw, 480px)',
-          background: '#F2DFD1',
-          borderRadius: 15,
-          padding: 'clamp(20px, 3vh, 36px) clamp(20px, 3vw, 40px)',
-          boxSizing: 'border-box',
-          marginTop: '5%',
-        }}>
-
-          {/* Tab */}
-          <div style={{ display: 'flex', gap: 'clamp(20px, 3vw, 50px)', marginBottom: '2.5vh' }}>
-            {['signin', 'signup'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => {
-                    setActiveTab(tab)
-                    setError('')
-                    setSukses('')
-                    }}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  fontFamily: "'Noto Sans', sans-serif",
-                  fontWeight: 700,
-                  fontSize: 'clamp(16px, 1.6vw, 22px)',
-                  color: '#93735C',
-                  cursor: 'pointer',
-                  textDecoration: activeTab === tab ? 'underline' : 'none',
-                  padding: 0,
-                }}
-              >
-                {tab === 'signin' ? 'Sign In' : 'Sign Up'}
-              </button>
-            ))}
+          <div className="family-image">
+            <img src="/family.png" alt="Keluarga" />
           </div>
 
-          {/* Form Sign In */}
-          {activeTab === 'signin' && (
-            <form onSubmit={handleLogin}>
-
-              {/* Email */}
-              <div style={{ marginBottom: '2vh' }}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: 700,
-                  fontSize: 'clamp(12px, 1vw, 15px)',
-                  color: '#93735C',
-                  marginBottom: 8,
-                }}>
-                  Email atau Nomor Handphone
-                </label>
-                <input
-                  type="text"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="Masukkan email..."
-                  required
-                  style={{
-                    width: '100%',
-                    height: 'clamp(40px, 5vh, 50px)',
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 'clamp(12px, 1vw, 14px)',
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                />
+          <div className="info-card">
+            <div className="info-item">
+              <span>📈</span>
+              <div>
+                <h3>Pantau pertumbuhan anak</h3>
+                <p>Lihat grafik dan status gizi anak dengan mudah</p>
               </div>
+            </div>
 
-              {/* Password */}
-              <div style={{ marginBottom: '1vh' }}>
-                <label style={{
-                  display: 'block',
-                  fontWeight: 700,
-                  fontSize: 'clamp(12px, 1vw, 15px)',
-                  color: '#93735C',
-                  marginBottom: 8,
-                }}>
-                  Password
-                </label>
-                <input
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Masukkan password..."
-                  required
-                  style={{
-                    width: '100%',
-                    height: 'clamp(40px, 5vh, 50px)',
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 'clamp(12px, 1vw, 14px)',
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                  }}
-                />
+            <div className="info-item">
+              <span>🛡️</span>
+              <div>
+                <h3>Imunisasi Terjadwal</h3>
+                <p>Pantau riwayat imunisasi agar anak tidak terlambat vaksin</p>
               </div>
+            </div>
 
-              {/* Lupa password */}
-              <div style={{ textAlign: 'right', marginBottom: '1.5vh' }}>
-                <span style={{
-                  fontSize: 'clamp(11px, 0.9vw, 13px)',
-                  color: '#93735C',
-                  cursor: 'pointer',
-                }}>
-                  Lupa Password?
-                </span>
+            <div className="info-item">
+              <span>🏥</span>
+              <div>
+                <h3>Riwayat Kunjungan</h3>
+                <p>Catat kunjungan dan lihat keaktifan anak di posyandu</p>
               </div>
-
-              {/* Error */}
-              {error && (
-                <div style={{
-                  color: '#c0392b',
-                  fontSize: 13,
-                  marginBottom: '1.5vh',
-                  textAlign: 'center',
-                  background: '#fdecea',
-                  padding: '8px 12px',
-                  borderRadius: 8,
-                }}>
-                  {error}
-                </div>
-              )}
-
-              {/* Tombol Masuk */}
-              <div style={{ textAlign: 'center', marginTop: '1vh' }}>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  style={{
-                    width: 'clamp(160px, 15vw, 220px)',
-                    height: 'clamp(38px, 5vh, 46px)',
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    fontFamily: "'Noto Sans', sans-serif",
-                    fontWeight: 700,
-                    fontSize: 'clamp(13px, 1.1vw, 16px)',
-                    color: '#93735C',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.7 : 1,
-                    transition: 'opacity 0.2s',
-                  }}
-                >
-                  {loading ? 'Memuat...' : 'Masuk'}
-                </button>
-              </div>
-
-            </form>
-          )}
-
-          {/* Form Sign Up */}
-            {activeTab === 'signup' && (
-            <form onSubmit={handleRegister}>
-
-                <div style={{ marginBottom: 14 }}>
-                <label style={{
-                    display: 'block',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: '#93735C',
-                    marginBottom: 8,
-                }}>
-                    Nama Lengkap
-                </label>
-                <input
-                    type="text"
-                    value={nama}
-                    onChange={(e) => setNama(e.target.value)}
-                    placeholder="Masukkan nama lengkap..."
-                    required
-                    style={{
-                    width: '100%',
-                    height: 46,
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 13,
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    }}
-                />
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                <label style={{
-                    display: 'block',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: '#93735C',
-                    marginBottom: 8,
-                }}>
-                    Email atau Nomor Handphone
-                </label>
-                <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="Masukkan email..."
-                    required
-                    style={{
-                    width: '100%',
-                    height: 46,
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 13,
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    }}
-                />
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                <label style={{
-                    display: 'block',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: '#93735C',
-                    marginBottom: 8,
-                }}>
-                    Password
-                </label>
-                <input
-                    type="password"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="Masukkan password..."
-                    required
-                    style={{
-                    width: '100%',
-                    height: 46,
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 13,
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    }}
-                />
-                </div>
-
-                <div style={{ marginBottom: 14 }}>
-                <label style={{
-                    display: 'block',
-                    fontWeight: 700,
-                    fontSize: 14,
-                    color: '#93735C',
-                    marginBottom: 8,
-                }}>
-                    Konfirmasi Password
-                </label>
-                <input
-                    type="password"
-                    value={konfirmPassword}
-                    onChange={(e) => setKonfirmPassword(e.target.value)}
-                    placeholder="Ulangi password..."
-                    required
-                    style={{
-                    width: '100%',
-                    height: 46,
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    padding: '0 15px',
-                    fontSize: 13,
-                    fontFamily: "'Noto Sans', sans-serif",
-                    boxSizing: 'border-box',
-                    outline: 'none',
-                    }}
-                />
-                </div>
-
-                {error && (
-                <div style={{
-                    color: '#c0392b',
-                    fontSize: 12,
-                    marginBottom: 12,
-                    textAlign: 'center',
-                    background: '#fdecea',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                }}>
-                    {error}
-                </div>
-                )}
-
-                {sukses && (
-                <div style={{
-                    color: '#27ae60',
-                    fontSize: 12,
-                    marginBottom: 12,
-                    textAlign: 'center',
-                    background: '#eafaf1',
-                    padding: '8px 12px',
-                    borderRadius: 8,
-                }}>
-                    {sukses}
-                </div>
-                )}
-
-                <div style={{ textAlign: 'center' }}>
-                <button
-                    type="submit"
-                    disabled={loading}
-                    style={{
-                    width: 200,
-                    height: 44,
-                    background: '#FFF5F8',
-                    borderRadius: 10,
-                    border: 'none',
-                    fontFamily: "'Noto Sans', sans-serif",
-                    fontWeight: 700,
-                    fontSize: 15,
-                    color: '#93735C',
-                    cursor: loading ? 'not-allowed' : 'pointer',
-                    opacity: loading ? 0.7 : 1,
-                    }}
-                >
-                    {loading ? 'Memuat...' : 'Daftar'}
-                </button>
-                </div>
-
-            </form>
-            )}
-
-
+            </div>
+          </div>
         </div>
-      </div>
+      </aside>
+
+      <main className="auth-right">
+        <section className="auth-hero">
+          <div className="welcome-text">
+            <h2>Selamat Datang di PosyanduCeria!</h2>
+            <p>Silakan masuk ke akun Anda!</p>
+          </div>
+
+          <div className={`auth-card ${mode === 'register' ? 'register-card' : ''}`}>
+            {mode === 'login' ? (
+              <>
+                <div className="form-title">
+                  <h2>Masuk ke Akun</h2>
+                  <p>Silakan isi data berikut untuk melanjutkan</p>
+                </div>
+
+                <form onSubmit={handleLogin}>
+                  <div className="form-group">
+                    <label>Email atau Nomor Handphone</label>
+                    <div className="input-wrap">
+                      <span>👤</span>
+                      <input
+                        type="email"
+                        value={loginEmail}
+                        onChange={(e) => setLoginEmail(e.target.value)}
+                        placeholder="Masukkan email atau nomor handphone"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label>Password</label>
+                    <div className="input-wrap">
+                      <span>🔒</span>
+                      <input
+                        type="password"
+                        value={loginPassword}
+                        onChange={(e) => setLoginPassword(e.target.value)}
+                        placeholder="Masukkan password"
+                        required
+                      />
+                    </div>
+                  </div>
+
+                  <div className="forgot-row">
+                    <button type="button">Lupa Password?</button>
+                  </div>
+
+                  {error && <div className="alert error">{error}</div>}
+                  {success && <div className="alert success">{success}</div>}
+
+                  <button type="submit" className="main-button" disabled={loading}>
+                    {loading ? 'Memproses...' : 'Masuk'}
+                  </button>
+
+                  <div className="divider">
+                    <span />
+                    <p>atau</p>
+                    <span />
+                  </div>
+
+                  <button
+                    type="button"
+                    className="google-button"
+                    onClick={() => alert('Login dengan Google belum dikonfigurasi.')}
+                  >
+                    <b>G</b>
+                    Masuk dengan Google
+                  </button>
+
+                  <p className="switch-text">
+                    Belum punya akun?{' '}
+                    <button type="button" onClick={() => switchMode('register')}>
+                      Daftar di sini
+                    </button>
+                  </p>
+                </form>
+
+                <div className="safe-box">
+                  <span>🛡️</span>
+                  <div>
+                    <h3>Data anda aman bersama kami</h3>
+                    <p>Kami menggunakan enkripsi untuk melindungi informasi anda</p>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="form-title">
+                  <h2>Daftar Akun</h2>
+                  <p>Buat akun untuk mulai menggunakan website PosyanduCeria</p>
+                </div>
+
+                <form onSubmit={handleRegister}>
+                  <div className="form-grid">
+                    <div className="form-group">
+                      <label>Nama Awal</label>
+                      <div className="input-wrap">
+                        <span>👤</span>
+                        <input
+                          type="text"
+                          value={namaAwal}
+                          onChange={(e) => setNamaAwal(e.target.value)}
+                          placeholder="Masukkan nama awal"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Nama Akhir</label>
+                      <div className="input-wrap">
+                        <span>👤</span>
+                        <input
+                          type="text"
+                          value={namaAkhir}
+                          onChange={(e) => setNamaAkhir(e.target.value)}
+                          placeholder="Masukkan nama akhir"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>No. Telepon</label>
+                      <div className="input-wrap">
+                        <span>📞</span>
+                        <input
+                          type="text"
+                          value={noTelepon}
+                          onChange={(e) => setNoTelepon(e.target.value)}
+                          placeholder="0852xxxxxxxx"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Email</label>
+                      <div className="input-wrap">
+                        <span>✉️</span>
+                        <input
+                          type="email"
+                          value={registerEmail}
+                          onChange={(e) => setRegisterEmail(e.target.value)}
+                          placeholder="contoh@gmail.com"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group full">
+                      <label>Alamat Lengkap</label>
+                      <div className="input-wrap">
+                        <span>📍</span>
+                        <input
+                          type="text"
+                          value={alamat}
+                          onChange={(e) => setAlamat(e.target.value)}
+                          placeholder="Masukkan alamat lengkap anda"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Password</label>
+                      <div className="input-wrap">
+                        <span>🔒</span>
+                        <input
+                          type="password"
+                          value={registerPassword}
+                          onChange={(e) => setRegisterPassword(e.target.value)}
+                          placeholder="Minimal 6 karakter"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    <div className="form-group">
+                      <label>Konfirmasi Password</label>
+                      <div className="input-wrap">
+                        <span>🔒</span>
+                        <input
+                          type="password"
+                          value={konfirmasiPassword}
+                          onChange={(e) => setKonfirmasiPassword(e.target.value)}
+                          placeholder="Masukkan ulang password"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="safe-box register-safe">
+                    <span>🛡️</span>
+                    <div>
+                      <h3>Data anda aman bersama kami</h3>
+                      <p>Kami menggunakan enkripsi untuk melindungi informasi anda</p>
+                    </div>
+                  </div>
+
+                  <label className="agree-row">
+                    <input
+                      type="checkbox"
+                      checked={agree}
+                      onChange={(e) => setAgree(e.target.checked)}
+                    />
+                    <span>
+                      Saya setuju dengan <b>Syarat & Ketentuan</b> dan <b>Kebijakan Privasi</b>
+                    </span>
+                  </label>
+
+                  {error && <div className="alert error">{error}</div>}
+                  {success && <div className="alert success">{success}</div>}
+
+                  <button type="submit" className="main-button" disabled={loading}>
+                    {loading ? 'Memproses...' : 'Daftar'}
+                  </button>
+
+                  <p className="switch-text">
+                    Sudah punya akun?{' '}
+                    <button type="button" onClick={() => switchMode('login')}>
+                      Masuk di sini
+                    </button>
+                  </p>
+                </form>
+              </>
+            )}
+          </div>
+        </section>
+      </main>
+
+      <style>{`
+      @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&display=swap');
+
+        .auth-page {
+          width: 100%;
+          min-height: 100vh;
+          display: grid;
+          grid-template-columns: 32% 68%;
+          background: #fff7fb;
+          overflow: hidden;
+          font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+          color: #31563b;
+        }
+
+        .auth-left {
+          min-height: 100vh;
+          background: #eaf1ef;
+          padding: 42px 42px 34px;
+          box-sizing: border-box;
+          overflow-y: auto;
+        }
+
+        .left-content {
+          min-height: calc(100vh - 76px);
+          display: flex;
+          flex-direction: column;
+        }
+
+        .auth-brand {
+          border: none;
+          background: transparent;
+          color: #3f6f49;
+          text-align: left;
+          font-family: inherit;
+          font-size: 28px;
+          font-weight: 800;
+          letter-spacing: -0.8px;
+          cursor: pointer;
+          padding: 0;
+          margin-bottom: 34px;
+        }
+
+        .auth-left h1 {
+          margin: 0;
+          max-width: 430px;
+          color: #2F5F3B;
+          font-size: clamp(30px, 3vw, 48px);
+          line-height: 1.22;
+          letter-spacing: -1.3px;
+          font-weight: 630;
+          font-family: "Poppins", "Inter", "Segoe UI", sans-serif;
+        }
+
+        .auth-left p {
+          margin: 18px 0 0;
+          max-width: 370px;
+          color: #4E7658;
+          font-size: 15px;
+          line-height: 1.75;
+          font-weight: 500;
+          letter-spacing: 0.1px;
+        }
+
+        .family-image {
+          width: min(300px, 72%);
+          aspect-ratio: 1 / 1;
+          border-radius: 50%;
+          overflow: hidden;
+          margin: 64px auto 54px;
+          background: #d5e2d7;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          box-shadow: 0 22px 45px rgba(51, 88, 57, 0.14);
+        }
+
+        .family-image img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+
+        .info-card {
+          margin-top: auto;
+          background: rgba(255, 247, 251, 0.92);
+          border-radius: 18px;
+          padding: 18px;
+          display: grid;
+          gap: 15px;
+          box-shadow: 0 16px 38px rgba(51, 88, 57, 0.10);
+        }
+
+        .info-item {
+          display: grid;
+          grid-template-columns: 28px 1fr;
+          gap: 12px;
+          align-items: flex-start;
+        }
+
+        .info-item > span {
+          font-size: 20px;
+        }
+
+        .info-item h3 {
+          margin: 0 0 4px;
+          color: #3f6f49;
+          font-size: 14px;
+          line-height: 1.25;
+          font-weight: 800;
+        }
+
+        .info-item p {
+          margin: 0;
+          color: #3f6f49;
+          font-size: 12px;
+          line-height: 1.45;
+          font-weight: 500;
+        }
+
+        .auth-right {
+          min-height: 100vh;
+          position: relative;
+          overflow-y: auto;
+          background: linear-gradient(to bottom, #4f724d 0 50%, #fff7fb 50% 100%);
+        }
+
+        .auth-hero {
+          min-height: 100vh;
+          box-sizing: border-box;
+          padding: 68px 32px 42px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          position: relative;
+        }
+
+        .welcome-text {
+          position: absolute;
+          top: 76px;
+          left: 24px;
+          right: 24px;
+          text-align: center;
+          color: #eaf1ef;
+        }
+
+        .welcome-text h2 {
+          margin: 0;
+          font-size: clamp(26px, 3vw, 44px);
+          line-height: 1.1;
+          font-weight: 800;
+          letter-spacing: 0.4px;
+        }
+
+        .welcome-text p {
+          margin: 8px 0 0;
+          font-size: clamp(16px, 1.5vw, 22px);
+          font-weight: 500;
+          color: #f1f4ef;
+        }
+
+        .auth-card {
+          width: min(620px, calc(100% - 32px));
+          margin-top: 145px;
+          border-radius: 18px;
+          background: rgba(242, 223, 209, 0.95);
+          padding: 28px 54px 30px;
+          box-sizing: border-box;
+          box-shadow: 0 24px 55px rgba(42, 52, 37, 0.14);
+          backdrop-filter: blur(8px);
+        }
+
+        .auth-card.register-card {
+          width: min(820px, calc(100% - 32px));
+          margin-top: 145px;
+          padding: 24px 48px 28px;
+        }
+
+        .auth-right {
+          min-height: 100vh;
+          position: relative;
+          overflow-y: auto;
+          background: linear-gradient(to bottom, #4f724d 0 50%, #fff7fb 50% 100%);
+        }
+
+        .auth-hero {
+          min-height: 100vh;
+          box-sizing: border-box;
+          padding: 68px 32px 42px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: flex-start;
+          position: relative;
+        }
+
+        .form-title {
+          text-align: center;
+          margin-bottom: 22px;
+        }
+
+        .form-title h2 {
+          margin: 0;
+          color: #775948;
+          font-size: 24px;
+          line-height: 1.1;
+          font-weight: 850;
+          letter-spacing: -0.4px;
+        }
+
+        .form-title p {
+          margin: 7px 0 0;
+          color: #775948;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .form-group {
+          margin-bottom: 16px;
+        }
+
+        .form-group label {
+          display: block;
+          color: #775948;
+          font-size: 13px;
+          font-weight: 800;
+          margin-bottom: 7px;
+        }
+
+        .input-wrap {
+          height: 42px;
+          border-radius: 9px;
+          background: rgba(255, 247, 251, 0.92);
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          padding: 0 13px;
+          box-sizing: border-box;
+        }
+
+        .input-wrap span {
+          width: 18px;
+          min-width: 18px;
+          color: #806251;
+          font-size: 14px;
+          display: inline-flex;
+          justify-content: center;
+        }
+
+        .input-wrap input {
+          width: 100%;
+          height: 100%;
+          border: none;
+          outline: none;
+          background: transparent;
+          color: #4c3b31;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 500;
+        }
+
+        .input-wrap input::placeholder {
+          color: rgba(119, 89, 72, 0.55);
+        }
+
+        .forgot-row {
+          margin: -4px 0 18px;
+          text-align: right;
+        }
+
+        .forgot-row button {
+          border: none;
+          background: transparent;
+          color: #8a6652;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 600;
+          cursor: pointer;
+          padding: 0;
+        }
+
+        .main-button {
+          width: 100%;
+          height: 46px;
+          border: none;
+          border-radius: 9px;
+          background: #6b4d3f;
+          color: white;
+          font-family: inherit;
+          font-size: 14px;
+          font-weight: 800;
+          cursor: pointer;
+          box-shadow: 0 10px 20px rgba(107, 77, 63, 0.18);
+          transition: 0.2s ease;
+        }
+
+        .main-button:hover {
+          transform: translateY(-1px);
+          background: #5f4438;
+        }
+
+        .main-button:disabled {
+          opacity: 0.65;
+          cursor: not-allowed;
+          transform: none;
+        }
+
+        .divider {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          margin: 16px 0 13px;
+          color: #7d5e4d;
+          font-size: 11px;
+          font-weight: 700;
+        }
+
+        .divider span {
+          height: 1px;
+          flex: 1;
+          background: rgba(125, 94, 77, 0.25);
+        }
+
+        .divider p {
+          margin: 0;
+        }
+
+        .google-button {
+          width: 100%;
+          height: 42px;
+          border: none;
+          border-radius: 9px;
+          background: rgba(255, 247, 251, 0.92);
+          color: #775948;
+          font-family: inherit;
+          font-size: 13px;
+          font-weight: 800;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          gap: 10px;
+          cursor: pointer;
+        }
+
+        .google-button b {
+          color: #4285f4;
+          font-size: 18px;
+        }
+
+        .switch-text {
+          margin: 15px 0 0;
+          text-align: center;
+          color: #775948;
+          font-size: 12px;
+          font-weight: 500;
+        }
+
+        .switch-text button {
+          border: none;
+          background: transparent;
+          color: #5d4032;
+          padding: 0;
+          font-family: inherit;
+          font-size: 12px;
+          font-weight: 850;
+          cursor: pointer;
+        }
+
+        .safe-box {
+          margin: 22px auto 0;
+          width: 82%;
+          min-height: 46px;
+          border-radius: 10px;
+          background: rgba(190, 221, 167, 0.72);
+          display: grid;
+          grid-template-columns: 34px 1fr;
+          align-items: center;
+          gap: 10px;
+          padding: 9px 14px;
+          box-sizing: border-box;
+          color: #3b6844;
+        }
+
+        .register-safe {
+          width: 100%;
+          margin: 22px 0 18px;
+        }
+
+        .safe-box > span {
+          font-size: 20px;
+        }
+
+        .safe-box h3 {
+          margin: 0;
+          font-size: 12px;
+          font-weight: 850;
+        }
+
+        .safe-box p {
+          margin: 2px 0 0;
+          font-size: 10px;
+          line-height: 1.3;
+          font-weight: 500;
+        }
+
+        .form-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 13px 16px;
+        }
+
+        .form-grid .form-group {
+          margin-bottom: 0;
+        }
+
+        .form-grid .full {
+          grid-column: 1 / -1;
+        }
+
+        .agree-row {
+          display: flex;
+          align-items: center;
+          gap: 9px;
+          margin: 4px 0 16px;
+          color: #775948;
+          font-size: 12px;
+          line-height: 1.4;
+          font-weight: 500;
+          cursor: pointer;
+        }
+
+        .agree-row input {
+          accent-color: #6b4d3f;
+        }
+
+        .agree-row b {
+          color: #5d4032;
+        }
+
+        .alert {
+          border-radius: 9px;
+          padding: 9px 12px;
+          margin-bottom: 14px;
+          text-align: center;
+          font-size: 12px;
+          font-weight: 700;
+        }
+
+        .alert.error {
+          color: #b42318;
+          background: #fdecea;
+        }
+
+        .alert.success {
+          color: #16753c;
+          background: #e8f7ed;
+        }
+
+        @media (max-width: 1024px) {
+          .auth-page {
+            grid-template-columns: 1fr;
+            overflow-y: auto;
+          }
+
+          .auth-left {
+            min-height: auto;
+            padding: 32px 28px;
+          }
+
+          .left-content {
+            min-height: auto;
+          }
+
+          .family-image {
+            width: 220px;
+            margin: 36px auto;
+          }
+
+          .auth-right {
+            min-height: 760px;
+          }
+        }
+
+        @media (max-width: 720px) {
+          .auth-left {
+            padding: 28px 20px;
+          }
+
+          .auth-hero {
+            padding: 130px 14px 38px;
+            justify-content: flex-start;
+          }
+
+          .welcome-text {
+            top: 42px;
+          }
+
+          .auth-card,
+          .auth-card.register-card {
+            width: 100%;
+            margin-top: 0;
+            padding: 24px 20px;
+          }
+
+          .form-grid {
+            grid-template-columns: 1fr;
+          }
+
+          .form-grid .full {
+            grid-column: auto;
+          }
+
+          .safe-box {
+            width: 100%;
+          }
+        }
+      `}</style>
     </div>
   )
 }
