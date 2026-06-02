@@ -1,109 +1,519 @@
-const { Op } = require('sequelize');
-const { Balita, User, Pertumbuhan, Kunjungan, Imunisasi } = require('../models');
+const { Op } = require('sequelize')
+const { Balita, User, Pertumbuhan, Kunjungan, Imunisasi } = require('../models')
 
 const hitungUsia = (tanggalLahir) => {
-  const lahir = new Date(tanggalLahir);
-  const sekarang = new Date();
-  return (sekarang.getFullYear() - lahir.getFullYear()) * 12 +
-    (sekarang.getMonth() - lahir.getMonth());
-};
+  if (!tanggalLahir) return 0
+
+  const lahir = new Date(tanggalLahir)
+  const sekarang = new Date()
+
+  if (Number.isNaN(lahir.getTime())) return 0
+
+  let usiaBulan =
+    (sekarang.getFullYear() - lahir.getFullYear()) * 12 +
+    (sekarang.getMonth() - lahir.getMonth())
+
+  if (sekarang.getDate() < lahir.getDate()) {
+    usiaBulan -= 1
+  }
+
+  return Math.max(usiaBulan, 0)
+}
 
 const getAll = async (req, res) => {
   try {
-    const { search, page = 1, limit = 10 } = req.query;
-    const where = { is_active: true };
-    if (req.user.role === 'orang_tua') where.user_id = req.user.id;
-    if (search) where.nama = { [Op.like]: `%${search}%` };
+    const { search, page = 1, limit = 10 } = req.query
+
+    const pageNumber = Math.max(parseInt(page) || 1, 1)
+    const limitNumber = Math.max(parseInt(limit) || 10, 1)
+
+    const where = {
+      is_active: true,
+    }
+
+    if (req.user?.role === 'orang_tua') {
+      where.user_id = req.user.id
+    }
+
+    if (search) {
+      where[Op.or] = [
+        {
+          nama: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          nama_ibu: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+        {
+          nik: {
+            [Op.like]: `%${search}%`,
+          },
+        },
+      ]
+    }
 
     const { count, rows } = await Balita.findAndCountAll({
       where,
-      include: [{ model: User, as: 'orang_tua', attributes: ['id', 'nama', 'email', 'no_telepon'] }],
-      limit: parseInt(limit),
-      offset: (page - 1) * limit,
+      include: [
+        {
+          model: User,
+          as: 'orang_tua',
+          attributes: ['id', 'nama', 'email', 'no_telepon'],
+          required: false,
+        },
+        {
+          model: Pertumbuhan,
+          as: 'riwayat_pertumbuhan',
+          attributes: [
+            'id',
+            'tanggal_ukur',
+            'berat_badan',
+            'tinggi_badan',
+            'lingkar_kepala',
+            'status_gizi',
+            'is_stunting',
+            'catatan',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_ukur', 'DESC']],
+        },
+        {
+          model: Kunjungan,
+          as: 'kunjungan',
+          attributes: [
+            'id',
+            'tanggal_kunjungan',
+            'jenis_kunjungan',
+            'catatan',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_kunjungan', 'DESC']],
+        },
+        {
+          model: Imunisasi,
+          as: 'riwayat_imunisasi',
+          attributes: [
+            'id',
+            'nama_vaksin',
+            'tanggal_pemberian',
+            'dosis',
+            'tanggal_jadwal_berikutnya',
+            'catatan',
+            'reaksi',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_pemberian', 'DESC']],
+        },
+      ],
+      limit: limitNumber,
+      offset: (pageNumber - 1) * limitNumber,
       order: [['createdAt', 'DESC']],
-    });
-    const data = rows.map((b) => ({ ...b.toJSON(), usia_bulan: hitungUsia(b.tanggal_lahir) }));
-    return res.json({ success: true, data, total: count, page: parseInt(page), limit: parseInt(limit) });
+      distinct: true,
+    })
+
+    const data = rows.map((balita) => {
+      const item = balita.toJSON()
+
+      const pertumbuhanTerakhir = item.riwayat_pertumbuhan?.[0] || null
+      const kunjunganTerakhir = item.kunjungan?.[0] || null
+      const imunisasiTerakhir = item.riwayat_imunisasi?.[0] || null
+
+      return {
+        ...item,
+        usia_bulan: hitungUsia(item.tanggal_lahir),
+
+        pertumbuhan_terakhir: pertumbuhanTerakhir,
+        tanggal_ukur_terakhir: pertumbuhanTerakhir?.tanggal_ukur || null,
+
+        kunjungan_terakhir: kunjunganTerakhir,
+        tanggal_kunjungan_terakhir: kunjunganTerakhir?.tanggal_kunjungan || null,
+
+        imunisasi_terakhir: imunisasiTerakhir,
+        nama_imunisasi_terakhir: imunisasiTerakhir?.nama_vaksin || null,
+        tanggal_imunisasi_terakhir: imunisasiTerakhir?.tanggal_pemberian || null,
+        status_imunisasi: imunisasiTerakhir ? 'Sudah Imunisasi' : 'Perlu Dicek',
+      }
+    })
+
+    return res.json({
+      success: true,
+      data,
+      total: count,
+      page: pageNumber,
+      limit: limitNumber,
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
   }
-};
+}
 
 const getById = async (req, res) => {
   try {
-    const where = { id: req.params.id };
-    if (req.user.role === 'orang_tua') where.user_id = req.user.id;
+    const where = {
+      id: req.params.id,
+    }
+
+    if (req.user?.role === 'orang_tua') {
+      where.user_id = req.user.id
+    }
+
     const balita = await Balita.findOne({
       where,
-      include: [{ model: User, as: 'orang_tua', attributes: ['id', 'nama', 'email', 'no_telepon'] }],
-    });
-    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
-    return res.json({ success: true, data: { ...balita.toJSON(), usia_bulan: hitungUsia(balita.tanggal_lahir) } });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
+      include: [
+        {
+          model: User,
+          as: 'orang_tua',
+          attributes: ['id', 'nama', 'email', 'no_telepon'],
+          required: false,
+        },
+        {
+          model: Pertumbuhan,
+          as: 'riwayat_pertumbuhan',
+          attributes: [
+            'id',
+            'tanggal_ukur',
+            'berat_badan',
+            'tinggi_badan',
+            'lingkar_kepala',
+            'status_gizi',
+            'is_stunting',
+            'catatan',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_ukur', 'DESC']],
+        },
+        {
+          model: Kunjungan,
+          as: 'kunjungan',
+          attributes: [
+            'id',
+            'tanggal_kunjungan',
+            'jenis_kunjungan',
+            'catatan',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_kunjungan', 'DESC']],
+        },
+        {
+          model: Imunisasi,
+          as: 'riwayat_imunisasi',
+          attributes: [
+            'id',
+            'nama_vaksin',
+            'tanggal_pemberian',
+            'dosis',
+            'tanggal_jadwal_berikutnya',
+            'catatan',
+            'reaksi',
+          ],
+          required: false,
+          separate: true,
+          limit: 1,
+          order: [['tanggal_pemberian', 'DESC']],
+        },
+      ],
+    })
 
-const create = async (req, res) => {
-  try {
-    const { nama, tanggal_lahir, jenis_kelamin, nik, nama_ayah, nama_ibu, alamat, user_id } = req.body;
-    const assignedUserId = req.user.role === 'admin' && user_id ? user_id : req.user.id;
-    const balita = await Balita.create({ nama, tanggal_lahir, jenis_kelamin, nik, nama_ayah, nama_ibu, alamat, user_id: assignedUserId });
-    return res.status(201).json({ success: true, message: 'Data balita berhasil ditambahkan', data: balita });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
+    if (!balita) {
+      return res.status(404).json({
+        success: false,
+        message: 'Balita tidak ditemukan',
+      })
+    }
 
-const update = async (req, res) => {
-  try {
-    const where = { id: req.params.id };
-    if (req.user.role === 'orang_tua') where.user_id = req.user.id;
-    const balita = await Balita.findOne({ where });
-    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
-    await balita.update(req.body);
-    return res.json({ success: true, message: 'Data balita berhasil diupdate', data: balita });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
+    const item = balita.toJSON()
 
-const remove = async (req, res) => {
-  try {
-    const balita = await Balita.findByPk(req.params.id);
-    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
-    await balita.update({ is_active: false });
-    return res.json({ success: true, message: 'Data balita berhasil dihapus' });
-  } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
-  }
-};
-
-const getRingkasan = async (req, res) => {
-  try {
-    const where = { id: req.params.id };
-    if (req.user.role === 'orang_tua') where.user_id = req.user.id;
-    const balita = await Balita.findOne({ where });
-    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
-
-    const [totalKunjungan, pertumbuhanTerakhir, imunisasiTerakhir] = await Promise.all([
-      Kunjungan.count({ where: { balita_id: balita.id } }),
-      Pertumbuhan.findOne({ where: { balita_id: balita.id }, order: [['tanggal_ukur', 'DESC']] }),
-      Imunisasi.findAll({ where: { balita_id: balita.id }, order: [['tanggal_pemberian', 'DESC']], limit: 5 }),
-    ]);
+    const pertumbuhanTerakhir = item.riwayat_pertumbuhan?.[0] || null
+    const kunjunganTerakhir = item.kunjungan?.[0] || null
+    const imunisasiTerakhir = item.riwayat_imunisasi?.[0] || null
 
     return res.json({
       success: true,
       data: {
-        balita: { ...balita.toJSON(), usia_bulan: hitungUsia(balita.tanggal_lahir) },
+        ...item,
+        usia_bulan: hitungUsia(item.tanggal_lahir),
+
+        pertumbuhan_terakhir: pertumbuhanTerakhir,
+        tanggal_ukur_terakhir: pertumbuhanTerakhir?.tanggal_ukur || null,
+
+        kunjungan_terakhir: kunjunganTerakhir,
+        tanggal_kunjungan_terakhir: kunjunganTerakhir?.tanggal_kunjungan || null,
+
+        imunisasi_terakhir: imunisasiTerakhir,
+        nama_imunisasi_terakhir: imunisasiTerakhir?.nama_vaksin || null,
+        tanggal_imunisasi_terakhir: imunisasiTerakhir?.tanggal_pemberian || null,
+        status_imunisasi: imunisasiTerakhir ? 'Sudah Imunisasi' : 'Perlu Dicek',
+      },
+    })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
+  }
+}
+
+const create = async (req, res) => {
+  try {
+    const {
+      nama,
+      tanggal_lahir,
+      jenis_kelamin,
+      nik,
+      nama_ayah,
+      nama_ibu,
+      alamat,
+      user_id,
+    } = req.body
+
+    if (!nama || !tanggal_lahir || !jenis_kelamin) {
+      return res.status(400).json({
+        success: false,
+        message: 'Nama, tanggal lahir, dan jenis kelamin wajib diisi',
+      })
+    }
+
+    const assignedUserId =
+      ['admin', 'pegawai'].includes(req.user?.role) && user_id
+        ? user_id
+        : req.user.id
+
+    const balita = await Balita.create({
+      nama,
+      tanggal_lahir,
+      jenis_kelamin,
+      nik: nik || null,
+      nama_ayah: nama_ayah || null,
+      nama_ibu: nama_ibu || null,
+      alamat: alamat || null,
+      user_id: assignedUserId,
+      is_active: true,
+    })
+
+    return res.status(201).json({
+      success: true,
+      message: 'Data balita berhasil ditambahkan',
+      data: balita,
+    })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
+  }
+}
+
+const update = async (req, res) => {
+  try {
+    const where = {
+      id: req.params.id,
+    }
+
+    if (req.user?.role === 'orang_tua') {
+      where.user_id = req.user.id
+    }
+
+    const balita = await Balita.findOne({
+      where,
+    })
+
+    if (!balita) {
+      return res.status(404).json({
+        success: false,
+        message: 'Balita tidak ditemukan',
+      })
+    }
+
+    const {
+      nama,
+      tanggal_lahir,
+      jenis_kelamin,
+      nik,
+      nama_ayah,
+      nama_ibu,
+      alamat,
+      user_id,
+    } = req.body
+
+    const payload = {
+      nama: nama ?? balita.nama,
+      tanggal_lahir: tanggal_lahir ?? balita.tanggal_lahir,
+      jenis_kelamin: jenis_kelamin ?? balita.jenis_kelamin,
+      nik: nik ?? balita.nik,
+      nama_ayah: nama_ayah ?? balita.nama_ayah,
+      nama_ibu: nama_ibu ?? balita.nama_ibu,
+      alamat: alamat ?? balita.alamat,
+    }
+
+    if (['admin', 'pegawai'].includes(req.user?.role) && user_id) {
+      payload.user_id = user_id
+    }
+
+    await balita.update(payload)
+
+    return res.json({
+      success: true,
+      message: 'Data balita berhasil diupdate',
+      data: balita,
+    })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
+  }
+}
+
+const remove = async (req, res) => {
+  try {
+    const where = {
+      id: req.params.id,
+    }
+
+    if (req.user?.role === 'orang_tua') {
+      where.user_id = req.user.id
+    }
+
+    const balita = await Balita.findOne({
+      where,
+    })
+
+    if (!balita) {
+      return res.status(404).json({
+        success: false,
+        message: 'Balita tidak ditemukan',
+      })
+    }
+
+    await balita.update({
+      is_active: false,
+    })
+
+    return res.json({
+      success: true,
+      message: 'Data balita berhasil dihapus',
+    })
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
+  }
+}
+
+const getRingkasan = async (req, res) => {
+  try {
+    const where = {
+      id: req.params.id,
+    }
+
+    if (req.user?.role === 'orang_tua') {
+      where.user_id = req.user.id
+    }
+
+    const balita = await Balita.findOne({
+      where,
+      include: [
+        {
+          model: User,
+          as: 'orang_tua',
+          attributes: ['id', 'nama', 'email', 'no_telepon'],
+          required: false,
+        },
+      ],
+    })
+
+    if (!balita) {
+      return res.status(404).json({
+        success: false,
+        message: 'Balita tidak ditemukan',
+      })
+    }
+
+    const [totalKunjungan, pertumbuhanTerakhir, imunisasiTerakhir] =
+      await Promise.all([
+        Kunjungan.count({
+          where: {
+            balita_id: balita.id,
+          },
+        }),
+        Pertumbuhan.findOne({
+          where: {
+            balita_id: balita.id,
+          },
+          attributes: [
+            'id',
+            'tanggal_ukur',
+            'berat_badan',
+            'tinggi_badan',
+            'lingkar_kepala',
+            'status_gizi',
+            'is_stunting',
+            'catatan',
+          ],
+          order: [['tanggal_ukur', 'DESC']],
+        }),
+        Imunisasi.findAll({
+          where: {
+            balita_id: balita.id,
+          },
+          attributes: [
+            'id',
+            'nama_vaksin',
+            'tanggal_pemberian',
+            'dosis',
+            'tanggal_jadwal_berikutnya',
+            'catatan',
+            'reaksi',
+          ],
+          order: [['tanggal_pemberian', 'DESC']],
+          limit: 5,
+        }),
+      ])
+
+    return res.json({
+      success: true,
+      data: {
+        balita: {
+          ...balita.toJSON(),
+          usia_bulan: hitungUsia(balita.tanggal_lahir),
+          pertumbuhan_terakhir: pertumbuhanTerakhir,
+          tanggal_ukur_terakhir: pertumbuhanTerakhir?.tanggal_ukur || null,
+        },
         total_kunjungan: totalKunjungan,
         pertumbuhan_terakhir: pertumbuhanTerakhir,
         imunisasi_terakhir: imunisasiTerakhir,
       },
-    });
+    })
   } catch (err) {
-    return res.status(500).json({ success: false, message: err.message });
+    return res.status(500).json({
+      success: false,
+      message: err.message,
+    })
   }
-};
+}
 
-module.exports = { getAll, getById, create, update, remove, getRingkasan };
+module.exports = {
+  getAll,
+  getById,
+  create,
+  update,
+  remove,
+  getRingkasan,
+}

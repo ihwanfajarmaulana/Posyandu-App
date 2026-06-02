@@ -15,7 +15,6 @@ const sidebarMenus = [
   { icon: '➕', label: 'Tambah Balita', to: '/tambah-balita' },
   { icon: '📋', label: 'Laporan Penimbangan', to: '/rekap-penimbangan' },
   { icon: '👤', label: 'Profil', to: '/profil' },
-  { icon: '⚙️', label: 'Pengaturan', to: '/pengaturan' },
 ]
 
 const pageSize = 7
@@ -34,10 +33,10 @@ function formatUsia(usiaBulan) {
   return `${tahun} Tahun ${bulan} Bulan`
 }
 
-function formatJenisKelamin(jenisKelamin) {
-  if (jenisKelamin === 'L') return 'Laki-laki'
-  if (jenisKelamin === 'P') return 'Perempuan'
-  return jenisKelamin || '-'
+function formatJenisKelamin(jk) {
+  if (jk === 'L') return 'Laki-laki'
+  if (jk === 'P') return 'Perempuan'
+  return jk || '-'
 }
 
 function formatTanggal(tanggal) {
@@ -54,12 +53,12 @@ function formatTanggal(tanggal) {
   })
 }
 
-function getAvatar(jenisKelamin) {
-  return jenisKelamin === 'P' ? '👧' : '👦'
+function getAvatar(jk) {
+  return jk === 'P' ? '👧' : '👦'
 }
 
-function getGenderColor(jenisKelamin) {
-  return jenisKelamin === 'P' ? '#D364F7' : '#2F88F0'
+function getGenderColor(jk) {
+  return jk === 'P' ? '#D364F7' : '#2F88F0'
 }
 
 function getAgeFilterValue(usiaBulan) {
@@ -72,22 +71,156 @@ function getAgeFilterValue(usiaBulan) {
   return '60+'
 }
 
-function buildTindakanText(item) {
-  if (item?.tindakan_terakhir) return item.tindakan_terakhir
-  if (item?.catatan_tindakan) return item.catatan_tindakan
-  return 'Pengukuran (BB, TB, Lingkar Kepala) dan Imunisasi'
+function toDateValue(date) {
+  if (!date) return 0
+
+  const parsed = new Date(date)
+
+  if (Number.isNaN(parsed.getTime())) return 0
+
+  return parsed.getTime()
 }
 
-function getLastMeasureDate(item) {
+function formatAngka(value, suffix = '') {
+  if (value === undefined || value === null || value === '') return null
+  return `${value}${suffix}`
+}
+
+function getPertumbuhanTerakhir(item) {
   return (
-    item?.tanggal_ukur_terakhir ||
-    item?.pertumbuhan_terakhir?.tanggal_ukur ||
-    item?.riwayat_pertumbuhan?.[0]?.tanggal_ukur ||
+    item?.pertumbuhan_terakhir ||
+    item?.riwayat_pertumbuhan?.[0] ||
     null
   )
 }
 
-export default function PilihAnak() {
+function getKunjunganTerakhir(item) {
+  return (
+    item?.kunjungan_terakhir ||
+    item?.kunjungan?.[0] ||
+    null
+  )
+}
+
+function getImunisasiTerakhir(item) {
+  return (
+    item?.imunisasi_terakhir ||
+    item?.riwayat_imunisasi?.[0] ||
+    null
+  )
+}
+
+function getLastMeasureDate(item) {
+  const pertumbuhan = getPertumbuhanTerakhir(item)
+  const kunjungan = getKunjunganTerakhir(item)
+  const imunisasi = getImunisasiTerakhir(item)
+
+  const daftarTanggal = [
+    item?.tanggal_ukur_terakhir,
+    pertumbuhan?.tanggal_ukur,
+    item?.tanggal_kunjungan_terakhir,
+    kunjungan?.tanggal_kunjungan,
+    item?.tanggal_imunisasi_terakhir,
+    imunisasi?.tanggal_pemberian,
+  ]
+    .filter(Boolean)
+    .sort((a, b) => toDateValue(b) - toDateValue(a))
+
+  return daftarTanggal[0] || null
+}
+
+function getTindakanTerakhir(item) {
+  const pertumbuhan = getPertumbuhanTerakhir(item)
+  const kunjungan = getKunjunganTerakhir(item)
+  const imunisasi = getImunisasiTerakhir(item)
+
+  const daftarTindakan = []
+
+  if (pertumbuhan) {
+    daftarTindakan.push({
+      jenis: 'pertumbuhan',
+      tanggal: toDateValue(
+        item?.tanggal_ukur_terakhir ||
+        pertumbuhan?.tanggal_ukur
+      ),
+      data: pertumbuhan,
+    })
+  }
+
+  if (kunjungan) {
+    daftarTindakan.push({
+      jenis: 'kunjungan',
+      tanggal: toDateValue(
+        item?.tanggal_kunjungan_terakhir ||
+        kunjungan?.tanggal_kunjungan
+      ),
+      data: kunjungan,
+    })
+  }
+
+  if (imunisasi) {
+    daftarTindakan.push({
+      jenis: 'imunisasi',
+      tanggal: toDateValue(
+        item?.tanggal_imunisasi_terakhir ||
+        imunisasi?.tanggal_pemberian
+      ),
+      data: imunisasi,
+    })
+  }
+
+  if (daftarTindakan.length === 0) {
+    return 'Belum ada tindakan'
+  }
+
+  const terakhir = daftarTindakan.sort((a, b) => b.tanggal - a.tanggal)[0]
+
+  if (terakhir.jenis === 'imunisasi') {
+    return `Imunisasi ${terakhir.data?.nama_vaksin || 'balita'}`
+  }
+
+  if (terakhir.jenis === 'kunjungan') {
+    const detail = []
+
+    const bb = formatAngka(terakhir.data?.berat_badan, ' kg')
+    const tb = formatAngka(terakhir.data?.tinggi_badan, ' cm')
+    const lk = formatAngka(terakhir.data?.lingkar_kepala, ' cm')
+
+    if (bb) detail.push(`BB ${bb}`)
+    if (tb) detail.push(`TB ${tb}`)
+    if (lk) detail.push(`LK ${lk}`)
+
+    if (detail.length > 0) {
+      return `Kunjungan dan pengukuran (${detail.join(', ')})`
+    }
+
+    return terakhir.data?.jenis_kunjungan
+      ? `Kunjungan ${terakhir.data.jenis_kunjungan}`
+      : 'Kunjungan posyandu'
+  }
+
+  if (terakhir.jenis === 'pertumbuhan') {
+    const detail = []
+
+    const bb = formatAngka(terakhir.data?.berat_badan, ' kg')
+    const tb = formatAngka(terakhir.data?.tinggi_badan, ' cm')
+    const lk = formatAngka(terakhir.data?.lingkar_kepala, ' cm')
+
+    if (bb) detail.push(`BB ${bb}`)
+    if (tb) detail.push(`TB ${tb}`)
+    if (lk) detail.push(`LK ${lk}`)
+
+    if (detail.length > 0) {
+      return `Pengukuran ${detail.join(', ')}`
+    }
+
+    return 'Pengukuran tumbuh kembang'
+  }
+
+  return 'Belum ada tindakan'
+}
+
+export default function DaftarBalita() {
   const navigate = useNavigate()
   const location = useLocation()
 
@@ -97,6 +230,8 @@ export default function PilihAnak() {
   const [search, setSearch] = useState('')
   const [ageFilter, setAgeFilter] = useState('all')
   const [currentPage, setCurrentPage] = useState(1)
+  const [deleteConfirm, setDeleteConfirm] = useState(null)
+  const [deleteLoading, setDeleteLoading] = useState(false)
 
   const user = useMemo(() => {
     try {
@@ -106,15 +241,36 @@ export default function PilihAnak() {
     }
   }, [])
 
+  const fetchBalita = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      const res = await API.get('/balita?limit=200')
+
+      const list = Array.isArray(res.data)
+        ? res.data
+        : Array.isArray(res.data?.data)
+          ? res.data.data
+          : []
+
+      setBalitaList(list)
+    } catch (err) {
+      setError(err.response?.data?.message || 'Gagal memuat data balita.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     let isMounted = true
 
-    const fetchBalita = async () => {
+    const load = async () => {
       setLoading(true)
       setError('')
 
       try {
-        const res = await API.get('/balita?limit=100')
+        const res = await API.get('/balita?limit=200')
 
         if (!isMounted) return
 
@@ -134,7 +290,7 @@ export default function PilihAnak() {
       }
     }
 
-    fetchBalita()
+    load()
 
     return () => {
       isMounted = false
@@ -149,6 +305,7 @@ export default function PilihAnak() {
         !keyword ||
         item?.nama?.toLowerCase().includes(keyword) ||
         item?.nama_ibu?.toLowerCase().includes(keyword) ||
+        item?.orang_tua?.nama?.toLowerCase().includes(keyword) ||
         item?.nik?.toLowerCase().includes(keyword) ||
         String(item?.id || '').toLowerCase().includes(keyword)
 
@@ -185,6 +342,20 @@ export default function PilihAnak() {
   const isActive = (to) => {
     if (to === '/dashboard') return location.pathname === '/dashboard'
     return location.pathname.startsWith(to)
+  }
+
+  const handleDelete = async (id) => {
+    setDeleteLoading(true)
+
+    try {
+      await API.delete(`/balita/${id}`)
+      await fetchBalita()
+      setDeleteConfirm(null)
+    } catch (err) {
+      alert(err.response?.data?.message || 'Gagal menghapus data balita.')
+    } finally {
+      setDeleteLoading(false)
+    }
   }
 
   const startItem = filteredData.length === 0 ? 0 : (currentPage - 1) * pageSize + 1
@@ -239,19 +410,13 @@ export default function PilihAnak() {
       <main style={styles.main}>
         <header style={styles.hero}>
           <div style={styles.heroLeft}>
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard')}
-              style={styles.backButton}
-            >
+            <button type="button" onClick={() => navigate('/dashboard')} style={styles.backButton}>
               ←
             </button>
 
             <div>
-              <h1 style={styles.heroTitle}>Pilih Balita</h1>
-              <p style={styles.heroSubtitle}>
-                Cari dan pilih balita untuk mengelola data balita
-              </p>
+              <h1 style={styles.heroTitle}>Daftar Balita</h1>
+              <p style={styles.heroSubtitle}>Cari dan pilih balita untuk mengelola data balita</p>
             </div>
           </div>
 
@@ -260,21 +425,28 @@ export default function PilihAnak() {
               🔔
             </button>
 
-            <button
-              type="button"
-              onClick={() => navigate('/profil')}
-              style={styles.userBadge}
-            >
-              👤 {user?.nama || 'User'}
+            <button type="button" onClick={() => navigate('/profil')} style={styles.userBadge}>
+              👤 {user?.nama || user?.name || 'User'}
             </button>
           </div>
         </header>
 
         <section style={styles.contentWrap}>
+          <div style={styles.actionBar}>
+            <button
+              type="button"
+              onClick={() => navigate('/tambah-balita')}
+              style={styles.addButton}
+            >
+              ＋ Tambah Balita Baru
+            </button>
+          </div>
+
           <div style={styles.tableCard}>
             <div style={styles.topFilterBar}>
               <div style={styles.searchBox}>
                 <span style={styles.searchIcon}>🔍</span>
+
                 <input
                   type="text"
                   placeholder="Cari nama anak / nama ibu / ID anak"
@@ -304,79 +476,102 @@ export default function PilihAnak() {
               <table style={styles.table}>
                 <thead>
                   <tr>
-                    <th style={{ ...styles.th, width: '28%' }}>Nama Anak</th>
-                    <th style={{ ...styles.th, width: '14%' }}>Usia</th>
-                    <th style={{ ...styles.th, width: '18%' }}>Nama Ibu</th>
-                    <th style={{ ...styles.th, width: '16%' }}>Terakhir Diukur</th>
-                    <th style={{ ...styles.th, width: '24%' }}>Tindakan</th>
+                    <th style={{ ...styles.th, width: '24%' }}>Nama Anak</th>
+                    <th style={{ ...styles.th, width: '12%' }}>Usia</th>
+                    <th style={{ ...styles.th, width: '16%' }}>Nama Ibu</th>
+                    <th style={{ ...styles.th, width: '14%' }}>Terakhir Diukur</th>
+                    <th style={{ ...styles.th, width: '24%' }}>Tindakan Terakhir</th>
+                    <th style={{ ...styles.th, width: '10%', textAlign: 'center' }}>Aksi</th>
                   </tr>
                 </thead>
 
                 <tbody>
                   {loading ? (
                     <tr>
-                      <td colSpan={5} style={styles.loadingCell}>
+                      <td colSpan={6} style={styles.loadingCell}>
                         Memuat data...
                       </td>
                     </tr>
                   ) : paginatedData.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={styles.loadingCell}>
+                      <td colSpan={6} style={styles.loadingCell}>
                         Data tidak ditemukan.
                       </td>
                     </tr>
                   ) : (
-                    paginatedData.map((item) => {
-                      const lastMeasureDate = getLastMeasureDate(item)
+                    paginatedData.map((item) => (
+                      <tr key={item.id} style={styles.tr}>
+                        <td style={styles.td}>
+                          <div style={styles.nameCell}>
+                            <div style={styles.avatarCircle}>
+                              {item?.foto ? (
+                                <img src={item.foto} alt={item.nama} style={styles.avatarImage} />
+                              ) : (
+                                <span>{getAvatar(item?.jenis_kelamin)}</span>
+                              )}
+                            </div>
 
-                      return (
-                        <tr
-                          key={item.id}
-                          style={styles.tr}
-                          onClick={() => navigate(`/tumbuh-kembang/${item.id}`)}
-                        >
-                          <td style={styles.td}>
-                            <div style={styles.nameCell}>
-                              <div style={styles.avatarCircle}>
-                                {item?.foto ? (
-                                  <img
-                                    src={item.foto}
-                                    alt={item.nama}
-                                    style={styles.avatarImage}
-                                  />
-                                ) : (
-                                  <span>{getAvatar(item?.jenis_kelamin)}</span>
-                                )}
-                              </div>
+                            <div>
+                              <div style={styles.namaAnak}>{item?.nama || '-'}</div>
 
-                              <div>
-                                <div style={styles.namaAnak}>{item?.nama || '-'}</div>
-                                <div
-                                  style={{
-                                    ...styles.genderText,
-                                    color: getGenderColor(item?.jenis_kelamin),
-                                  }}
-                                >
-                                  {item?.jenis_kelamin === 'P' ? '♀' : '♂'}{' '}
-                                  {formatJenisKelamin(item?.jenis_kelamin)}
-                                </div>
+                              <div
+                                style={{
+                                  ...styles.genderText,
+                                  color: getGenderColor(item?.jenis_kelamin),
+                                }}
+                              >
+                                {item?.jenis_kelamin === 'P' ? '♀' : '♂'}{' '}
+                                {formatJenisKelamin(item?.jenis_kelamin)}
                               </div>
                             </div>
-                          </td>
+                          </div>
+                        </td>
 
-                          <td style={styles.td}>{formatUsia(item?.usia_bulan)}</td>
-                          <td style={styles.td}>{item?.nama_ibu || '-'}</td>
-                          <td style={styles.td}>
-                            {lastMeasureDate ? formatTanggal(lastMeasureDate) : 'Belum diukur'}
-                          </td>
-                          <td style={styles.td}>
-                            <div style={styles.tindakanText}>
-                              {buildTindakanText(item)}
-                            </div>
-                          </td>
-                        </tr>
-                      )
-                    })
+                        <td style={styles.td}>{formatUsia(item?.usia_bulan)}</td>
+
+                        <td style={styles.td}>
+                          {item?.nama_ibu || item?.orang_tua?.nama || '-'}
+                        </td>
+
+                        <td style={styles.td}>
+                          {formatTanggal(getLastMeasureDate(item))}
+                        </td>
+
+                        <td style={styles.td}>
+                          <div style={styles.tindakanText}>
+                            {getTindakanTerakhir(item)}
+                          </div>
+                        </td>
+
+                        <td style={{ ...styles.td, textAlign: 'center' }}>
+                          <div style={styles.actionButtons}>
+                            <button
+                              type="button"
+                              title="Edit"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                navigate(`/tambah-balita/${item.id}`)
+                              }}
+                              style={styles.editBtn}
+                            >
+                              ✏️
+                            </button>
+
+                            <button
+                              type="button"
+                              title="Hapus"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                setDeleteConfirm(item)
+                              }}
+                              style={styles.deleteBtn}
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
                   )}
                 </tbody>
               </table>
@@ -390,7 +585,7 @@ export default function PilihAnak() {
               <div style={styles.pagination}>
                 <button
                   type="button"
-                  onClick={() => setCurrentPage((prev) => Math.max(prev - 1, 1))}
+                  onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
                   disabled={currentPage === 1}
                   style={{
                     ...styles.pageButton,
@@ -402,13 +597,10 @@ export default function PilihAnak() {
 
                 {visiblePages[0] > 1 && (
                   <>
-                    <button
-                      type="button"
-                      onClick={() => setCurrentPage(1)}
-                      style={styles.pageNumber}
-                    >
+                    <button type="button" onClick={() => setCurrentPage(1)} style={styles.pageNumber}>
                       1
                     </button>
+
                     {visiblePages[0] > 2 && <span style={styles.dotText}>...</span>}
                   </>
                 )}
@@ -432,6 +624,7 @@ export default function PilihAnak() {
                     {visiblePages[visiblePages.length - 1] < totalPages - 1 && (
                       <span style={styles.dotText}>...</span>
                     )}
+
                     <button
                       type="button"
                       onClick={() => setCurrentPage(totalPages)}
@@ -444,9 +637,7 @@ export default function PilihAnak() {
 
                 <button
                   type="button"
-                  onClick={() =>
-                    setCurrentPage((prev) => Math.min(prev + 1, totalPages))
-                  }
+                  onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
                   disabled={currentPage === totalPages}
                   style={{
                     ...styles.pageButton,
@@ -460,6 +651,40 @@ export default function PilihAnak() {
           </div>
         </section>
       </main>
+
+      {deleteConfirm && (
+        <div style={styles.modalOverlay}>
+          <div style={styles.modalCard}>
+            <div style={styles.modalIcon}>🗑️</div>
+
+            <h3 style={styles.modalTitle}>Hapus Data Balita?</h3>
+
+            <p style={styles.modalDesc}>
+              Data <strong>{deleteConfirm.nama}</strong> akan dinonaktifkan. Tindakan ini tidak dapat dibatalkan.
+            </p>
+
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                onClick={() => setDeleteConfirm(null)}
+                style={styles.modalCancelBtn}
+                disabled={deleteLoading}
+              >
+                Batal
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleDelete(deleteConfirm.id)}
+                style={styles.modalDeleteBtn}
+                disabled={deleteLoading}
+              >
+                {deleteLoading ? 'Menghapus...' : 'Ya, Hapus'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -501,12 +726,12 @@ const styles = {
   nav: {
     display: 'flex',
     flexDirection: 'column',
-    gap: 8,
+    gap: 4,
     flex: 1,
   },
 
   navLink: {
-    minHeight: 44,
+    minHeight: 42,
     display: 'flex',
     alignItems: 'center',
     gap: 12,
@@ -514,7 +739,7 @@ const styles = {
     borderRadius: 12,
     color: '#355C3C',
     textDecoration: 'none',
-    fontSize: 15,
+    fontSize: 14,
     fontWeight: 500,
     fontFamily,
   },
@@ -542,6 +767,7 @@ const styles = {
     fontWeight: 600,
     cursor: 'pointer',
     fontFamily,
+    marginTop: 8,
   },
 
   main: {
@@ -558,7 +784,6 @@ const styles = {
     alignItems: 'flex-start',
     gap: 20,
     color: '#fff',
-    fontFamily,
   },
 
   heroLeft: {
@@ -576,7 +801,6 @@ const styles = {
     cursor: 'pointer',
     padding: 0,
     marginTop: 2,
-    fontFamily,
   },
 
   heroTitle: {
@@ -584,14 +808,12 @@ const styles = {
     fontSize: 22,
     fontWeight: 700,
     letterSpacing: '-0.4px',
-    fontFamily,
   },
 
   heroSubtitle: {
     margin: '8px 0 0',
     fontSize: 14,
     color: 'rgba(255,255,255,0.9)',
-    fontFamily,
   },
 
   heroRight: {
@@ -627,14 +849,30 @@ const styles = {
     padding: '10px 34px 34px',
   },
 
+  actionBar: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginBottom: 12,
+  },
+
+  addButton: {
+    background: '#F7E5D8',
+    color: '#6C5145',
+    border: 'none',
+    padding: '10px 20px',
+    borderRadius: 12,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily,
+  },
+
   tableCard: {
     background: '#FFF7F8',
     borderRadius: 16,
     border: '1px solid #E7CFCB',
     padding: 22,
-    boxShadow: '0 12px 28px rgba(30, 45, 30, 0.12)',
-    width: '100%',
-    maxWidth: '100%',
+    boxShadow: '0 12px 28px rgba(30,45,30,0.12)',
     boxSizing: 'border-box',
     overflow: 'hidden',
   },
@@ -685,6 +923,7 @@ const styles = {
     fontWeight: 600,
     outline: 'none',
     fontFamily,
+    width: '100%',
   },
 
   errorBox: {
@@ -721,7 +960,7 @@ const styles = {
   },
 
   tr: {
-    cursor: 'pointer',
+    cursor: 'default',
     transition: '0.2s ease',
   },
 
@@ -789,6 +1028,39 @@ const styles = {
     fontFamily,
   },
 
+  actionButtons: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+
+  editBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: '1px solid #E6C9B6',
+    background: '#FFF3E0',
+    cursor: 'pointer',
+    fontSize: 15,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
+  deleteBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    border: '1px solid #FECACA',
+    background: '#FEF2F2',
+    cursor: 'pointer',
+    fontSize: 15,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+
   footerBar: {
     marginTop: 18,
     display: 'flex',
@@ -814,43 +1086,116 @@ const styles = {
 
   pageButton: {
     minHeight: 34,
-    padding: '0 12px',
-    border: 'none',
+    padding: '0 14px',
     borderRadius: 8,
-    background: '#F7B6B1',
-    color: '#fff',
+    border: '1px solid #E6C9B6',
+    background: '#F3DED2',
+    color: '#6B5247',
     fontSize: 13,
-    fontWeight: 700,
+    fontWeight: 600,
     cursor: 'pointer',
     fontFamily,
   },
 
   pageButtonDisabled: {
-    background: '#F4D5D3',
-    color: '#fff',
+    opacity: 0.4,
     cursor: 'not-allowed',
   },
 
   pageNumber: {
-    width: 34,
-    height: 34,
-    border: 'none',
+    minWidth: 34,
+    minHeight: 34,
+    padding: '0 8px',
     borderRadius: 8,
-    background: '#F7B6B1',
-    color: '#fff',
+    border: '1px solid #E6C9B6',
+    background: '#FFF7F8',
+    color: '#6B5247',
     fontSize: 13,
-    fontWeight: 700,
+    fontWeight: 600,
     cursor: 'pointer',
     fontFamily,
   },
 
   pageNumberActive: {
-    background: '#F38F8A',
+    background: '#4F724D',
+    color: '#fff',
+    border: '1px solid #4F724D',
   },
 
   dotText: {
     color: '#8A6A5A',
-    padding: '0 4px',
+    fontSize: 14,
+    padding: '0 2px',
+  },
+
+  modalOverlay: {
+    position: 'fixed',
+    inset: 0,
+    background: 'rgba(0,0,0,0.45)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 9999,
+  },
+
+  modalCard: {
+    background: '#fff',
+    borderRadius: 20,
+    padding: '32px 36px',
+    maxWidth: 380,
+    width: '90%',
+    textAlign: 'center',
+    boxShadow: '0 20px 60px rgba(0,0,0,0.2)',
+  },
+
+  modalIcon: {
+    fontSize: 42,
+    marginBottom: 12,
+  },
+
+  modalTitle: {
+    margin: '0 0 10px',
+    color: '#3D1F1A',
+    fontSize: 20,
     fontWeight: 700,
+  },
+
+  modalDesc: {
+    margin: '0 0 24px',
+    color: '#6B5247',
+    fontSize: 14,
+    lineHeight: 1.6,
+  },
+
+  modalActions: {
+    display: 'flex',
+    gap: 12,
+    justifyContent: 'center',
+  },
+
+  modalCancelBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    border: '1px solid #E6C9B6',
+    background: '#F3DED2',
+    color: '#6B5247',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily,
+  },
+
+  modalDeleteBtn: {
+    flex: 1,
+    minHeight: 44,
+    borderRadius: 12,
+    border: 'none',
+    background: '#DC2626',
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily,
   },
 }
