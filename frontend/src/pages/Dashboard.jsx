@@ -204,7 +204,7 @@ export default function Dashboard() {
           {/* Quick action cards */}
           <section style={{ ...styles.actionsGrid, position: 'relative', zIndex: 1 }}>
             <ActionCard to="/jadwal" iconName="calendar" title="Agenda Posyandu" desc="Lihat Semua agenda posyandu untuk balita anda!" delayClass="pc-delay-2" />
-            <ActionCard to="/notifikasi" iconName="bell" title="Notifikasi" desc="Lihat pengingat kegiatan posyandu agar tidak melewatkan jadwal anak" delayClass="pc-delay-3" />
+            <ActionCard to="/tumbuh-kembang" iconName="chart" title="Riwayat Pertumbuhan" desc="Pantau perkembangan balita berdasarkan hasil pemeriksaan" delayClass="pc-delay-3" />
             <ActionCard to="/chat" iconName="chat" title="Chat & Konsultasi" desc="Tanyakan seputar tumbuh kembang anak dengan AI!" badge="AI" delayClass="pc-delay-4" />
             <ActionCard to="/rekomendasi" iconName="bookmark" title="Rekomendasi" desc="Dapatkan rekomendasi sesuai kebutuhan anak" delayClass="pc-delay-5" />
           </section>

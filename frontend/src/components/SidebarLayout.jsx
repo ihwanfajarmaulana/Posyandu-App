@@ -16,11 +16,11 @@ const colors = {
 }
 
 const menuItems = [
-  { icon: 'home', label: 'Beranda', to: '/dashboard' },
-  { icon: 'calendar', label: 'Agenda Posyandu', to: '/jadwal' },
-  { icon: 'bell', label: 'Notifikasi', to: '/notifikasi' },
-  { icon: 'chat', label: 'Chat & Konsultasi', to: '/chat' },
-  { icon: 'bookmark', label: 'Rekomendasi', to: '/rekomendasi' },
+  { icon: 'home-fill', label: 'Beranda', to: '/dashboard' },
+  { icon: 'calendar-fill', label: 'Agenda Posyandu', to: '/jadwal' },
+  { icon: 'growth-fill', label: 'Riwayat Pertumbuhan', to: '/tumbuh-kembang' },
+  { icon: 'chat-fill', label: 'Chat & Konsultasi', to: '/chat' },
+  { icon: 'rekomendasi-fill', label: 'Rekomendasi', to: '/rekomendasi' },
 ]
 
 export function Icon({ name, size = 22, color = colors.green, strokeWidth = 1.8 }) {
@@ -36,7 +36,51 @@ export function Icon({ name, size = 22, color = colors.green, strokeWidth = 1.8 
     'aria-hidden': true,
   }
 
+  // ── Filled (solid) icons used by the sidebar menu (match Figma) ──
+  const fill = { width: size, height: size, viewBox: '0 0 24 24', 'aria-hidden': true }
   switch (name) {
+    case 'home-fill':
+      return (
+        <svg {...fill} fill={color}>
+          <path d="M11.36 2.78a1 1 0 0 1 1.28 0l8.5 7.16A1 1 0 0 1 21 11.2V20a1 1 0 0 1-1 1h-5a1 1 0 0 1-1-1v-4.5h-4V20a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-8.8a1 1 0 0 1 .36-.76l8-6.66z" />
+        </svg>
+      )
+    case 'calendar-fill':
+      return (
+        <svg {...fill}>
+          <rect x="3.5" y="5" width="17" height="15.5" rx="2.6" fill={color} />
+          <rect x="7" y="2.6" width="2" height="4" rx="1" fill={color} />
+          <rect x="15" y="2.6" width="2" height="4" rx="1" fill={color} />
+          <rect x="3.5" y="9" width="17" height="1.4" fill="#FFFFFF" opacity="0.5" />
+          <g fill="#FFFFFF">
+            <circle cx="8" cy="13.6" r="1.05" /><circle cx="12" cy="13.6" r="1.05" /><circle cx="16" cy="13.6" r="1.05" />
+            <circle cx="8" cy="17.4" r="1.05" /><circle cx="12" cy="17.4" r="1.05" /><circle cx="16" cy="17.4" r="1.05" />
+          </g>
+        </svg>
+      )
+    case 'growth-fill':
+      return (
+        <svg {...fill}>
+          <rect x="3.5" y="3.5" width="17" height="17" rx="4.2" fill={color} />
+          <polyline points="7 14.5 10 11 13 13 17 7.8" fill="none" stroke="#FFFFFF" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+          <circle cx="17" cy="7.8" r="1.35" fill="#FFFFFF" />
+        </svg>
+      )
+    case 'chat-fill':
+      return (
+        <svg {...fill} fill={color}>
+          <path d="M6 3.5h12A3.5 3.5 0 0 1 21.5 7v6a3.5 3.5 0 0 1-3.5 3.5h-6.2L7 20.2a.8.8 0 0 1-1.3-.62V16.5H6A3.5 3.5 0 0 1 2.5 13V7A3.5 3.5 0 0 1 6 3.5z" />
+          <g fill="#FFFFFF"><circle cx="8.5" cy="10" r="1.25" /><circle cx="12" cy="10" r="1.25" /><circle cx="15.5" cy="10" r="1.25" /></g>
+        </svg>
+      )
+    case 'rekomendasi-fill':
+      return (
+        <svg {...fill}>
+          <rect x="5" y="5" width="14" height="16.5" rx="3" fill={color} />
+          <rect x="9" y="2.7" width="6" height="3.6" rx="1.5" fill={color} />
+          <polyline points="8.6 13.2 11 15.6 15.6 10.4" fill="none" stroke="#FFFFFF" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      )
     case 'home':
       return (
         <svg {...common}>

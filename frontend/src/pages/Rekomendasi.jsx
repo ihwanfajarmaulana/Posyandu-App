@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useParams, useNavigate } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
 import { GreenHeaderDecorations, CreamSectionDecorations } from '../components/Decorations'
@@ -103,6 +104,8 @@ function formatTanggal(tgl) {
 /* ════════════════════════════════════════════════════════════════════════ */
 
 export default function Rekomendasi() {
+  const { id } = useParams()
+  const navigate = useNavigate()
   const [anak, setAnak] = useState(null)
   const [rekomendasi, setRekomendasi] = useState(rekomendasiFallback)
   const [penanganan, setPenanganan] = useState(penangananFallback)
@@ -114,23 +117,25 @@ export default function Rekomendasi() {
     let cancelled = false
     setLoading(true)
 
-    // 1. Get the parent's children
+    // 1. Get the parent's children, then pick the one chosen on the picker page.
+    //    Looking the child up inside the parent's own list guarantees a parent
+    //    can only open a child that actually belongs to them.
     API.get('/balita').then(async (res) => {
       if (cancelled) return
       const list = res.data?.data || []
-      if (list.length === 0) {
+      const chosen = list.find((c) => String(c.id) === String(id))
+      if (!chosen) {
         setLoading(false)
         return
       }
-      const firstAnak = list[0]
 
       // 2. Get the child's latest growth/summary data
       try {
-        const ringkasan = await API.get('/balita/' + firstAnak.id + '/ringkasan')
+        const ringkasan = await API.get('/balita/' + chosen.id + '/ringkasan')
         const p = ringkasan.data?.data?.pertumbuhan_terakhir || {}
         if (!cancelled) {
           setAnak({
-            ...firstAnak,
+            ...chosen,
             berat_badan: p.berat_badan ?? null,
             tinggi_badan: p.tinggi_badan ?? null,
             tanggal_ukur: p.tanggal_ukur ?? null,
@@ -141,24 +146,24 @@ export default function Rekomendasi() {
           })
         }
       } catch {
-        if (!cancelled) setAnak(firstAnak)
+        if (!cancelled) setAnak(chosen)
       }
 
       // 3. Try to fetch recommendations for this child from backend.
       // If the endpoint doesn't exist, we keep the fallback list.
       try {
-        const rek = await API.get('/rekomendasi/anak/' + firstAnak.id)
-        const list = rek.data?.data || []
-        if (!cancelled && list.length > 0) setRekomendasi(list)
+        const rek = await API.get('/rekomendasi/anak/' + chosen.id)
+        const rekList = rek.data?.data || []
+        if (!cancelled && rekList.length > 0) setRekomendasi(rekList)
       } catch {
         // backend may not have this endpoint yet — fallback content stays
       }
 
       // 4. Try to fetch penanganan (actions parents already did)
       try {
-        const pen = await API.get('/penanganan/anak/' + firstAnak.id)
-        const list = pen.data?.data || []
-        if (!cancelled && list.length > 0) setPenanganan(list)
+        const pen = await API.get('/penanganan/anak/' + chosen.id)
+        const penList = pen.data?.data || []
+        if (!cancelled && penList.length > 0) setPenanganan(penList)
       } catch {
         // fallback stays
       }
@@ -169,7 +174,7 @@ export default function Rekomendasi() {
     })
 
     return () => { cancelled = true }
-  }, [])
+  }, [id])
 
   return (
     <div style={s.page}>
@@ -181,7 +186,18 @@ export default function Rekomendasi() {
         <section style={{ ...s.greenSection, position: 'relative', overflow: 'hidden' }}>
           <GreenHeaderDecorations />
           <header style={{ ...s.headerRow, position: 'relative', zIndex: 1 }}>
-            <h1 style={s.headerTitle}>Tumbuh Kembang</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              <button
+                type="button"
+                onClick={() => navigate('/rekomendasi')}
+                style={s.backBtn}
+                aria-label="Kembali ke pilih anak"
+                className="pc-btn pc-focusable"
+              >
+                <Icon name="arrow-left" size={20} color={colors.cream} strokeWidth={2.4} />
+              </button>
+              <h1 style={s.headerTitle}>Rekomendasi</h1>
+            </div>
             <div style={s.headerRight}>
               <button type="button" style={s.bellBtn} aria-label="Notifikasi" className="pc-btn pc-bell">
                 <Icon name="bell" size={20} color={colors.brown} />
@@ -368,9 +384,6 @@ function DataAnakCard({ child }) {
           <br />
           {formatTanggal(child.tanggal_ukur) || '-'}
         </div>
-        <button type="button" style={s.catatBtn} className="pc-btn pc-focusable">
-          + Catat Penanganan
-        </button>
       </div>
     </div>
   )
@@ -677,12 +690,12 @@ const s = {
     fontSize: 12, color: colors.mutedBrown,
     textAlign: 'center', lineHeight: 1.4,
   },
-  catatBtn: {
-    marginTop: 6, padding: '9px 18px',
-    background: '#CFEBD2', color: colors.green,
-    border: '1px solid rgba(0,0,0,0.06)',
-    borderRadius: 10, fontSize: 13, fontWeight: 800,
-    cursor: 'pointer', fontFamily: "'Noto Sans', sans-serif",
+  backBtn: {
+    width: 38, height: 38, borderRadius: '50%',
+    background: 'rgba(255, 255, 255, 0.18)',
+    border: '1px solid rgba(255, 255, 255, 0.35)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    cursor: 'pointer', flexShrink: 0,
   },
 
   /* Pink content section — matches the Dashboard's pinkBand exactly */

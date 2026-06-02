@@ -12,6 +12,7 @@ import Kunjungan from './pages/Kunjungan'
 import Profil from './pages/Profil'
 import Pengaturan from './pages/Pengaturan'
 import Rekomendasi from './pages/Rekomendasi'
+import PilihAnakRekomendasi from './pages/PilihAnakRekomendasi'
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token')
@@ -36,7 +37,8 @@ function App() {
       <Route path="/kunjungan" element={<PrivateRoute><Kunjungan /></PrivateRoute>} />
       <Route path="/profil" element={<PrivateRoute><Profil /></PrivateRoute>} />
       <Route path="/pengaturan" element={<PrivateRoute><Pengaturan /></PrivateRoute>} />
-      <Route path="/rekomendasi" element={<PrivateRoute><Rekomendasi /></PrivateRoute>} />
+      <Route path="/rekomendasi" element={<PrivateRoute><PilihAnakRekomendasi /></PrivateRoute>} />
+      <Route path="/rekomendasi/:id" element={<PrivateRoute><Rekomendasi /></PrivateRoute>} />
     </Routes>
   )
 }
