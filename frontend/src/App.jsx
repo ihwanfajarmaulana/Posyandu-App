@@ -1,6 +1,11 @@
 import { Routes, Route, Navigate } from 'react-router-dom'
 
+import './ortu/index.css'
+
 import Login from './pages/Login'
+import Landing from './pages/Landing'
+
+// POV PEGAWAI / ADMIN
 import Dashboard from './pages/Dashboard'
 import Profil from './pages/Profil'
 import PilihAnak from './pages/PilihAnak'
@@ -20,13 +25,48 @@ import RekapPenimbangan from './pages/RekapPenimbangan'
 import DetailRekapPenimbangan from './pages/DetailRekapPenimbangan'
 import LaporanPuskesmas from './pages/LaporanPuskesmas'
 import DaftarLaporan from './pages/DaftarLaporan'
-import AppSidebar from './components/AppSidebar'
-import Landing from './pages/Landing'
 import MonitoringStatusBalita from './pages/MonitoringStatusBalita'
+import AppSidebar from './components/AppSidebar'
+
+// POV ORANG TUA
+import OrtuHome from './ortu/pages/Home'
+import OrtuDashboard from './ortu/pages/Dashboard'
+import OrtuPilihAnak from './ortu/pages/PilihAnak'
+import OrtuTumbuhKembang from './ortu/pages/TumbuhKembang'
+import OrtuPilihAnakImunisasi from './ortu/pages/PilihAnakImunisasi'
+import OrtuImunisasi from './ortu/pages/Imunisasi'
+import OrtuJadwal from './ortu/pages/Jadwal'
+import OrtuNotifikasi from './ortu/pages/Notifikasi'
+import OrtuKunjungan from './ortu/pages/Kunjungan'
+import OrtuProfil from './ortu/pages/Profil'
+import OrtuPengaturan from './ortu/pages/Pengaturan'
+import OrtuRekomendasi from './ortu/pages/Rekomendasi'
+import OrtuChatKonsultasi from './ortu/pages/ChatKonsultasi'
+
+const getUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem('user') || '{}')
+  } catch {
+    return {}
+  }
+}
+
+const getRole = () => {
+  const user = getUser()
+  return String(user?.role || '').toLowerCase()
+}
+
+const isPegawaiRole = (role) => ['admin', 'pegawai'].includes(String(role || '').toLowerCase())
+const isOrtuRole = (role) => String(role || '').toLowerCase() === 'orang_tua'
 
 const PrivateRoute = ({ children }) => {
   const token = localStorage.getItem('token')
   return token ? children : <Navigate to="/login" replace />
+}
+
+const LoginRoute = () => {
+  const token = localStorage.getItem('token')
+  return token ? <Navigate to="/dashboard" replace /> : <Login />
 }
 
 const DefaultRedirect = () => {
@@ -34,69 +74,148 @@ const DefaultRedirect = () => {
   return <Navigate to={token ? '/dashboard' : '/'} replace />
 }
 
-const ProtectedPage = ({ children }) => (
-  <PrivateRoute>
-    <div className="app-shell">
-      <AppSidebar />
-      <main className="app-shell-content">
-        {children}
-      </main>
-    </div>
-  </PrivateRoute>
+const PegawaiShell = ({ children }) => (
+  <div className="app-shell">
+    <AppSidebar />
+    <main className="app-shell-content">{children}</main>
+  </div>
 )
+
+const PegawaiPage = ({ children }) => {
+  const role = getRole()
+
+  return (
+    <PrivateRoute>
+      {isPegawaiRole(role) ? (
+        <PegawaiShell>{children}</PegawaiShell>
+      ) : (
+        <Navigate to="/dashboard" replace />
+      )}
+    </PrivateRoute>
+  )
+}
+
+const OrtuPage = ({ children }) => {
+  const role = getRole()
+
+  return (
+    <PrivateRoute>
+      {isOrtuRole(role) ? children : <Navigate to="/dashboard" replace />}
+    </PrivateRoute>
+  )
+}
+
+const RoleBasedPage = ({ pegawai, ortu, pegawaiSidebar = true }) => {
+  const role = getRole()
+
+  return (
+    <PrivateRoute>
+      {isPegawaiRole(role)
+        ? pegawaiSidebar
+          ? <PegawaiShell>{pegawai}</PegawaiShell>
+          : pegawai
+        : isOrtuRole(role)
+          ? ortu
+          : <Navigate to="/login" replace />}
+    </PrivateRoute>
+  )
+}
 
 function App() {
   return (
     <Routes>
-      {/* HALAMAN AWAL USER UMUM */}
+      {/* HALAMAN PUBLIC */}
       <Route path="/" element={<Landing />} />
+      <Route path="/home" element={<OrtuHome />} />
+      <Route path="/login" element={<LoginRoute />} />
 
-      {/* LOGIN */}
-      <Route path="/login" element={<Login />} />
+      {/* DASHBOARD SESUAI ROLE */}
+      <Route
+        path="/dashboard"
+        element={
+          <RoleBasedPage
+            pegawai={<Dashboard />}
+            ortu={<OrtuDashboard />}
+            pegawaiSidebar={false}
+          />
+        }
+      />
 
-      {/* DASHBOARD PEGAWAI TANPA SIDEBAR */}
-      <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+      {/* ROUTE YANG DIPAKAI OLEH DUA POV */}
+      <Route
+        path="/profil"
+        element={<RoleBasedPage pegawai={<Profil />} ortu={<OrtuProfil />} />}
+      />
 
-      {/* HALAMAN FITUR DENGAN SIDEBAR */}
-      <Route path="/profil" element={<ProtectedPage><Profil /></ProtectedPage>} />
+      <Route
+        path="/tumbuh-kembang"
+        element={<RoleBasedPage pegawai={<PilihAnak />} ortu={<OrtuPilihAnak />} />}
+      />
+      <Route
+        path="/tumbuh-kembang/:id"
+        element={<RoleBasedPage pegawai={<TumbuhKembang />} ortu={<OrtuTumbuhKembang />} />}
+      />
 
-      <Route path="/tumbuh-kembang" element={<ProtectedPage><PilihAnak /></ProtectedPage>} />
-      <Route path="/tumbuh-kembang/:id" element={<ProtectedPage><TumbuhKembang /></ProtectedPage>} />
+      <Route
+        path="/imunisasi"
+        element={<RoleBasedPage pegawai={<PilihAnakImunisasi />} ortu={<OrtuPilihAnakImunisasi />} />}
+      />
+      <Route
+        path="/imunisasi/:id"
+        element={<RoleBasedPage pegawai={<Imunisasi />} ortu={<OrtuImunisasi />} />}
+      />
 
-      <Route path="/imunisasi" element={<ProtectedPage><PilihAnakImunisasi /></ProtectedPage>} />
-      <Route path="/imunisasi/:id" element={<ProtectedPage><Imunisasi /></ProtectedPage>} />
+      <Route
+        path="/jadwal"
+        element={<RoleBasedPage pegawai={<Jadwal />} ortu={<OrtuJadwal />} />}
+      />
 
-      <Route path="/jadwal" element={<ProtectedPage><Jadwal /></ProtectedPage>} />
+      <Route
+        path="/kunjungan"
+        element={
+          <RoleBasedPage
+            pegawai={<Navigate to="/riwayatkunjungan" replace />}
+            ortu={<OrtuKunjungan />}
+            pegawaiSidebar={false}
+          />
+        }
+      />
 
-      <Route path="/riwayatkunjungan" element={<ProtectedPage><PilihAnakKunjungan /></ProtectedPage>} />
-      <Route path="/riwayatkunjungan/:id" element={<ProtectedPage><RiwayatKunjungan /></ProtectedPage>} />
+      {/* ROUTE KHUSUS ORANG TUA */}
+      <Route path="/notifikasi" element={<OrtuPage><OrtuNotifikasi /></OrtuPage>} />
+      <Route path="/pengaturan" element={<OrtuPage><OrtuPengaturan /></OrtuPage>} />
+      <Route path="/rekomendasi" element={<OrtuPage><OrtuRekomendasi /></OrtuPage>} />
+      <Route path="/chat" element={<OrtuPage><OrtuChatKonsultasi /></OrtuPage>} />
+      <Route path="/chat/:id" element={<OrtuPage><OrtuChatKonsultasi /></OrtuPage>} />
 
-      <Route path="/catatkunjungan" element={<ProtectedPage><CatatKunjunganBaru /></ProtectedPage>} />
-      <Route path="/catatkunjungan/:id" element={<ProtectedPage><CatatKunjunganBaru /></ProtectedPage>} />
+      {/* ROUTE KHUSUS PEGAWAI / ADMIN */}
+      <Route path="/riwayatkunjungan" element={<PegawaiPage><PilihAnakKunjungan /></PegawaiPage>} />
+      <Route path="/riwayatkunjungan/:id" element={<PegawaiPage><RiwayatKunjungan /></PegawaiPage>} />
 
-      <Route path="/kunjungan" element={<Navigate to="/riwayatkunjungan" replace />} />
+      <Route path="/catatkunjungan" element={<PegawaiPage><CatatKunjunganBaru /></PegawaiPage>} />
+      <Route path="/catatkunjungan/:id" element={<PegawaiPage><CatatKunjunganBaru /></PegawaiPage>} />
+
       <Route path="/riwayat-kunjungan" element={<Navigate to="/riwayatkunjungan" replace />} />
       <Route path="/pilih-anak-kunjungan" element={<Navigate to="/riwayatkunjungan" replace />} />
 
-      <Route path="/rekomendasi-balita" element={<ProtectedPage><RekomendasiBalita /></ProtectedPage>} />
-      <Route path="/penanganan-rekomendasi" element={<ProtectedPage><PenangananRekomendasi /></ProtectedPage>} />
-      <Route path="/penanganan-rekomendasi/:id" element={<ProtectedPage><PenangananRekomendasi /></ProtectedPage>} />
-      <Route path="/catat-penanganan/:id" element={<ProtectedPage><CatatPenanganan /></ProtectedPage>} />
-      <Route path="/penanganan-rekomendasi/:id/catat" element={<ProtectedPage><CatatPenanganan /></ProtectedPage>} />
+      <Route path="/rekomendasi-balita" element={<PegawaiPage><RekomendasiBalita /></PegawaiPage>} />
+      <Route path="/penanganan-rekomendasi" element={<PegawaiPage><PenangananRekomendasi /></PegawaiPage>} />
+      <Route path="/penanganan-rekomendasi/:id" element={<PegawaiPage><PenangananRekomendasi /></PegawaiPage>} />
+      <Route path="/catat-penanganan/:id" element={<PegawaiPage><CatatPenanganan /></PegawaiPage>} />
+      <Route path="/penanganan-rekomendasi/:id/catat" element={<PegawaiPage><CatatPenanganan /></PegawaiPage>} />
 
-      <Route path="/daftar-balita" element={<ProtectedPage><DaftarBalita /></ProtectedPage>} />
-      <Route path="/tambah-balita" element={<ProtectedPage><TambahBalita /></ProtectedPage>} />
-      <Route path="/tambah-balita/:id" element={<ProtectedPage><TambahBalita /></ProtectedPage>} />
+      <Route path="/daftar-balita" element={<PegawaiPage><DaftarBalita /></PegawaiPage>} />
+      <Route path="/tambah-balita" element={<PegawaiPage><TambahBalita /></PegawaiPage>} />
+      <Route path="/tambah-balita/:id" element={<PegawaiPage><TambahBalita /></PegawaiPage>} />
 
-      <Route path="/monitoring-status-balita" element={<ProtectedPage><MonitoringStatusBalita /></ProtectedPage>} />
+      <Route path="/monitoring-status-balita" element={<PegawaiPage><MonitoringStatusBalita /></PegawaiPage>} />
 
-      <Route path="/rekap-penimbangan" element={<ProtectedPage><RekapPenimbangan /></ProtectedPage>} />
-      <Route path="/rekap-penimbangan/:id" element={<ProtectedPage><DetailRekapPenimbangan /></ProtectedPage>} />
+      <Route path="/rekap-penimbangan" element={<PegawaiPage><RekapPenimbangan /></PegawaiPage>} />
+      <Route path="/rekap-penimbangan/:id" element={<PegawaiPage><DetailRekapPenimbangan /></PegawaiPage>} />
 
-      <Route path="/laporan-puskesmas/buat" element={<ProtectedPage><LaporanPuskesmas /></ProtectedPage>} />
-      <Route path="/laporan-puskesmas/daftar" element={<ProtectedPage><DaftarLaporan /></ProtectedPage>} />
+      <Route path="/laporan-puskesmas/buat" element={<PegawaiPage><LaporanPuskesmas /></PegawaiPage>} />
+      <Route path="/laporan-puskesmas/daftar" element={<PegawaiPage><DaftarLaporan /></PegawaiPage>} />
 
-      {/* Kalau route tidak ditemukan */}
       <Route path="*" element={<DefaultRedirect />} />
     </Routes>
   )
