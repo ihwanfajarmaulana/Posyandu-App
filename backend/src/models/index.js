@@ -126,58 +126,7 @@ const Kunjungan = sequelize.define('Kunjungan', {
   },
   }, {
     tableName: 'kunjungan',
-  }),
-  const login = async (req, res) => {
-  const { email, password } = req.body;
-
-  try {
-    console.log("EMAIL:", email);
-    console.log("PASSWORD:", password);
-
-    const user = await User.findOne({
-      where: { email }
-    });
-
-    console.log("USER:", user);
-
-    if (!user) {
-      return res.status(401).json({
-        success: false,
-        message: "User tidak ditemukan"
-      });
-    }
-
-    console.log("PASSWORD DB:", user.password);
-    console.log("IS ACTIVE:", user.is_active);
-
-    const valid = user.validatePassword(password);
-
-    console.log("VALID:", valid);
-
-    if (!valid) {
-      return res.status(401).json({
-        success: false,
-        message: "Password tidak cocok"
-      });
-    }
-
-    const token = generateToken(user);
-
-    return res.json({
-      success: true,
-      token,
-      data: user
-    });
-
-  } catch (err) {
-    console.error(err);
-
-    return res.status(500).json({
-      success: false,
-      message: err.message
-    });
-  }
-};
+  })
 
 const Pertumbuhan = sequelize.define('Pertumbuhan', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
