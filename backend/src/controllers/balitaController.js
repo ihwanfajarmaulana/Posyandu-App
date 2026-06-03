@@ -289,10 +289,29 @@ const create = async (req, res) => {
       })
     }
 
+    // Resolve the parent account this balita belongs to.
+    // - admin/pegawai may explicitly pass a parent's user_id
+    // - ortu can only register a balita under their OWN id
     const assignedUserId =
       ['admin', 'pegawai'].includes(req.user?.role) && user_id
         ? user_id
         : req.user.id
+
+    // Verify the target user exists and is actually an orang_tua so the balita
+    // is never silently linked to an admin or a non-existent account.
+    const targetUser = await User.findByPk(assignedUserId)
+    if (!targetUser) {
+      return res.status(404).json({
+        success: false,
+        message: 'Akun orang tua yang dipilih tidak ditemukan',
+      })
+    }
+    if (targetUser.role !== 'orang_tua') {
+      return res.status(422).json({
+        success: false,
+        message: 'Balita hanya bisa dihubungkan ke akun dengan role orang_tua',
+      })
+    }
 
     const balita = await Balita.create({
       nama,
@@ -362,6 +381,15 @@ const update = async (req, res) => {
     }
 
     if (['admin', 'pegawai'].includes(req.user?.role) && user_id) {
+      // Same orang_tua validation as create — never reassign to a non-existent
+      // user or to an admin.
+      const targetUser = await User.findByPk(user_id)
+      if (!targetUser) {
+        return res.status(404).json({ success: false, message: 'Akun orang tua tidak ditemukan' })
+      }
+      if (targetUser.role !== 'orang_tua') {
+        return res.status(422).json({ success: false, message: 'Balita hanya bisa dihubungkan ke akun dengan role orang_tua' })
+      }
       payload.user_id = user_id
     }
 

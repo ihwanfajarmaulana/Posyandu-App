@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar } from '../components/SidebarLayout'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 // Daftar lengkap vaksin standar
 const VAKSIN_STANDAR = [
@@ -23,6 +24,7 @@ export default function Imunisasi() {
   const [balita, setBalita] = useState(null)
   const [riwayat, setRiwayat] = useState([])
   const navigate = useNavigate()
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     if (!id) {
@@ -37,7 +39,7 @@ export default function Imunisasi() {
     API.get(`/balita/${id}/imunisasi`)
       .then(res => setRiwayat(res.data.data))
       .catch(() => {})
-  }, [id, navigate])
+  }, [id, navigate, refresh])
 
   const handleLogout = () => {
     localStorage.removeItem('token')

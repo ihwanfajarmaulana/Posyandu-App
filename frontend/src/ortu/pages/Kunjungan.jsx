@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import API from '../api'
 import { SharedSidebar, Icon } from '../components/SidebarLayout'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 const colors = {
   green: '#4E724C',
@@ -41,6 +42,7 @@ export default function Kunjungan() {
   const [kunjungan, setKunjungan] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     let cancelled = false
@@ -66,7 +68,7 @@ export default function Kunjungan() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refresh])
 
   return (
     <div style={styles.page}>

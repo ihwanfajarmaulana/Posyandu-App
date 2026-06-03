@@ -419,7 +419,7 @@ export default function Imunisasi() {
 
   return (
     <div style={styles.page}>
-      <Sidebar location={location} navigate={navigate} handleLogout={handleLogout} />
+      {/* Embedded <Sidebar/> removed — global AppSidebar from PegawaiShell takes over */}
 
       <main style={styles.main}>
         <header style={styles.header}>

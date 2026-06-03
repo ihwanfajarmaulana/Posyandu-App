@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon } from '../components/SidebarLayout'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 const colors = {
   green: '#4E724C',
@@ -237,6 +238,7 @@ export default function ChatKonsultasi() {
   const [loadingChat, setLoadingChat] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState('')
+  const refresh = useRefreshOnFocus()
 
   const chatEndRef = useRef(null)
 
@@ -318,7 +320,7 @@ export default function ChatKonsultasi() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [refresh])
 
   useEffect(() => {
     if (!selectedChildId) return

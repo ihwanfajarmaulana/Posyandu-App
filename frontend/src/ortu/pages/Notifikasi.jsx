@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
 import { GreenHeaderDecorations, GreenContentDecorations } from '../components/Decorations'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 // ─── Warna ───────────────────────────────────────────────────────────────────
 const colors = {
@@ -119,6 +120,7 @@ export default function Notifikasi() {
   const [showProfile, setShowProfile] = useState(false)
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const refresh = useRefreshOnFocus()
 
   // ── Ambil data: coba /notifikasi dulu, fallback ke /jadwal, lalu demo ──
   useEffect(() => {
@@ -147,7 +149,7 @@ export default function Notifikasi() {
       })
 
     return () => { cancelled = true }
-  }, [])
+  }, [refresh])
 
   // ════════════════════════════════════════════════════════════════════════
   //  RENDER

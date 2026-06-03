@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const User = sequelize.define('User', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nama: { type: DataTypes.STRING(100), allowNull: false },
-  email: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+  email: { type: DataTypes.STRING(100), allowNull: false, unique: true, validate: { isEmail: true } },
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: { type: DataTypes.ENUM('orang_tua', 'admin'), allowNull: false, defaultValue: 'orang_tua' },
   no_telepon: { type: DataTypes.STRING(20) },
@@ -13,10 +13,21 @@ const User = sequelize.define('User', {
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
 }, {
   tableName: 'users',
+  hooks: {
+    // Hash the password every time it's set/changed — never store plain text.
+    beforeCreate: async (user) => {
+      if (user.password) user.password = await bcrypt.hash(user.password, 10);
+    },
+    beforeUpdate: async (user) => {
+      if (user.changed('password')) user.password = await bcrypt.hash(user.password, 10);
+    },
+  },
 });
 
-User.prototype.validatePassword = function (plain) {
-  return this.password === plain;
+// bcrypt.compare is async — controllers MUST await this.
+User.prototype.validatePassword = async function (plain) {
+  if (!plain || !this.password) return false;
+  return bcrypt.compare(plain, this.password);
 };
 
 const Balita = sequelize.define('Balita', {

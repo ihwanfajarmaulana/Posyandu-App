@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar } from '../components/SidebarLayout'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 export default function PilihAnakImunisasi() {
   const [balita, setBalita] = useState([])
@@ -10,13 +11,14 @@ export default function PilihAnakImunisasi() {
   const navigate = useNavigate()
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const isAdmin = user.role === 'admin'
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     API.get('/balita')
       .then(res => setBalita(res.data.data))
       .catch(() => {})
       .finally(() => setLoading(false))
-  }, [])
+  }, [refresh])
 
   const handleLogout = () => {
     localStorage.removeItem('token')

@@ -2,7 +2,7 @@ import { Routes, Route, Navigate } from 'react-router-dom'
 
 import './ortu/index.css'
 
-import Login from './pages/Login'
+import Login from './ortu/pages/Login'
 import Landing from './pages/Landing'
 
 // POV PEGAWAI / ADMIN
@@ -41,6 +41,7 @@ import OrtuKunjungan from './ortu/pages/Kunjungan'
 import OrtuProfil from './ortu/pages/Profil'
 import OrtuPengaturan from './ortu/pages/Pengaturan'
 import OrtuRekomendasi from './ortu/pages/Rekomendasi'
+import OrtuPilihAnakRekomendasi from './ortu/pages/PilihAnakRekomendasi'
 import OrtuChatKonsultasi from './ortu/pages/ChatKonsultasi'
 
 const getUser = () => {
@@ -81,13 +82,15 @@ const PegawaiShell = ({ children }) => (
   </div>
 )
 
-const PegawaiPage = ({ children }) => {
+// Pages that already include their OWN sidebar (teammate's foundation) opt-out
+// of the global PegawaiShell by passing noShell — fixes the "two sidebars" bug.
+const PegawaiPage = ({ children, noShell = false }) => {
   const role = getRole()
 
   return (
     <PrivateRoute>
       {isPegawaiRole(role) ? (
-        <PegawaiShell>{children}</PegawaiShell>
+        noShell ? children : <PegawaiShell>{children}</PegawaiShell>
       ) : (
         <Navigate to="/dashboard" replace />
       )}
@@ -184,7 +187,8 @@ function App() {
       {/* ROUTE KHUSUS ORANG TUA */}
       <Route path="/notifikasi" element={<OrtuPage><OrtuNotifikasi /></OrtuPage>} />
       <Route path="/pengaturan" element={<OrtuPage><OrtuPengaturan /></OrtuPage>} />
-      <Route path="/rekomendasi" element={<OrtuPage><OrtuRekomendasi /></OrtuPage>} />
+      <Route path="/rekomendasi" element={<OrtuPage><OrtuPilihAnakRekomendasi /></OrtuPage>} />
+      <Route path="/rekomendasi/:id" element={<OrtuPage><OrtuRekomendasi /></OrtuPage>} />
       <Route path="/chat" element={<OrtuPage><OrtuChatKonsultasi /></OrtuPage>} />
       <Route path="/chat/:id" element={<OrtuPage><OrtuChatKonsultasi /></OrtuPage>} />
 

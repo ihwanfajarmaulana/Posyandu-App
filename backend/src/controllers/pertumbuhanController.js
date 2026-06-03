@@ -150,6 +150,13 @@ const klasifikasiStatus = (usia_bulan, jenis_kelamin, berat_badan, tinggi_badan)
 
 const getByBalita = async (req, res) => {
   try {
+    // Ortu ownership guard — a parent may only read growth data for their own balita
+    const balita = await Balita.findByPk(req.params.balita_id);
+    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
+    if (req.user.role === 'orang_tua' && balita.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Anda tidak memiliki akses ke data balita ini' });
+    }
+
     const where = { balita_id: req.params.balita_id };
     if (req.query.from || req.query.to) {
       where.tanggal_ukur = {};
@@ -169,6 +176,20 @@ const create = async (req, res) => {
     if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
 
     const { tanggal_ukur, berat_badan, tinggi_badan, lingkar_kepala, catatan } = req.body;
+
+    // Validate required numeric fields before sending to Sequelize — a bad value
+    // would otherwise produce an opaque 500 instead of a clear 422.
+    const bb = Number(berat_badan);
+    const tb = Number(tinggi_badan);
+    if (!tanggal_ukur) {
+      return res.status(422).json({ success: false, message: 'Tanggal ukur wajib diisi' });
+    }
+    if (!Number.isFinite(bb) || bb <= 0 || bb > 150) {
+      return res.status(422).json({ success: false, message: 'Berat badan harus angka antara 0 dan 150 kg' });
+    }
+    if (!Number.isFinite(tb) || tb <= 0 || tb > 250) {
+      return res.status(422).json({ success: false, message: 'Tinggi badan harus angka antara 0 dan 250 cm' });
+    }
     const usia_bulan = hitungUsiaBulan(balita.tanggal_lahir);
     const status = klasifikasiStatus(usia_bulan, balita.jenis_kelamin, berat_badan, tinggi_badan);
     const zscore = hitungSemuaZScore(usia_bulan, balita.jenis_kelamin, berat_badan, tinggi_badan);

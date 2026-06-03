@@ -145,7 +145,7 @@ export default function LaporanPuskesmas() {
 
   return (
     <div style={S.page}>
-      <Sidebar />
+      {/* Embedded <Sidebar/> removed — global AppSidebar from PegawaiShell takes over */}
       <main style={S.main}>
         <header style={S.header}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>

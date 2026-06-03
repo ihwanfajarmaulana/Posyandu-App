@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
 import { GreenHeaderDecorations, GreenContentDecorations } from '../components/Decorations'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 // ─── Warna yang dipakai di seluruh halaman ini ───────────────────────────────
 const colors = {
@@ -158,6 +159,7 @@ export default function Jadwal() {
 
   const user = JSON.parse(localStorage.getItem('user') || '{}')
   const isAdmin = user.role === 'admin'
+  const refresh = useRefreshOnFocus()
 
   // ── Ambil data jadwal dari API ─────────────────────────────────────────
   const loadJadwal = async () => {
@@ -184,7 +186,7 @@ export default function Jadwal() {
       .catch(() => { if (!cancelled) setJadwal(demoJadwal) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [refresh])
 
   // ── Filter kegiatan berdasarkan tab aktif ──────────────────────────────
   const tampilJadwal = activeFilter === 'semua'

@@ -44,7 +44,8 @@ const login = async (req, res) => {
     if (!user || !user.is_active)
       return res.status(401).json({ success: false, message: 'Email atau password salah' });
 
-    const valid = user.validatePassword(password);
+    // bcrypt.compare is async — MUST await
+    const valid = await user.validatePassword(password);
     if (!valid)
       return res.status(401).json({ success: false, message: 'Email atau password salah' });
 
@@ -65,7 +66,19 @@ const getMe = async (req, res) => res.json({ success: true, data: req.user });
 const updateProfile = async (req, res) => {
   const { nama, no_telepon, alamat } = req.body;
   try {
-    await User.update({ nama, no_telepon, alamat }, { where: { id: req.user.id } });
+    // Only update fields that were actually sent — prevents accidentally nullifying
+    // existing data when the client omits a field.
+    const updates = {};
+    if (nama !== undefined) {
+      if (!String(nama).trim()) {
+        return res.status(422).json({ success: false, message: 'Nama tidak boleh kosong' });
+      }
+      updates.nama = String(nama).trim();
+    }
+    if (no_telepon !== undefined) updates.no_telepon = no_telepon;
+    if (alamat !== undefined) updates.alamat = alamat;
+
+    await User.update(updates, { where: { id: req.user.id } });
     const updated = await User.findByPk(req.user.id, { attributes: { exclude: ['password'] } });
     return res.json({ success: true, message: 'Profil berhasil diupdate', data: updated });
   } catch (err) {
@@ -76,10 +89,19 @@ const updateProfile = async (req, res) => {
 const changePassword = async (req, res) => {
   const { old_password, new_password } = req.body;
   try {
+    if (!old_password || !new_password) {
+      return res.status(422).json({ success: false, message: 'Password lama dan baru wajib diisi' });
+    }
+    if (String(new_password).length < 6) {
+      return res.status(422).json({ success: false, message: 'Password baru minimal 6 karakter' });
+    }
+
     const user = await User.findByPk(req.user.id);
-    const valid = user.validatePassword(old_password);
+    const valid = await user.validatePassword(old_password);
     if (!valid)
       return res.status(400).json({ success: false, message: 'Password lama salah' });
+
+    // The model's beforeUpdate hook hashes the new password automatically.
     user.password = new_password;
     await user.save();
     return res.json({ success: true, message: 'Password berhasil diubah' });

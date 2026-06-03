@@ -274,7 +274,7 @@ export default function RekomendasiBalita() {
 
   return (
     <div style={styles.page}>
-      <Sidebar location={location} navigate={navigate} />
+      {/* Embedded <Sidebar/> removed — global AppSidebar from PegawaiShell takes over */}
 
       <main style={styles.main}>
         <header style={styles.header}>

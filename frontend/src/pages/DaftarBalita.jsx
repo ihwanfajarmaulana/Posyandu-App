@@ -381,31 +381,7 @@ export default function DaftarBalita() {
 
   return (
     <div style={styles.page}>
-      <aside style={styles.sidebar}>
-        <button type="button" onClick={() => navigate('/dashboard')} style={styles.brand}>
-          PosyanduCeria
-        </button>
-
-        <nav style={styles.nav}>
-          {sidebarMenus.map((menu) => (
-            <Link
-              key={menu.label}
-              to={menu.to}
-              style={{
-                ...styles.navLink,
-                ...(isActive(menu.to) ? styles.navLinkActive : {}),
-              }}
-            >
-              <span style={styles.navIcon}>{menu.icon}</span>
-              <span>{menu.label}</span>
-            </Link>
-          ))}
-        </nav>
-
-        <button type="button" onClick={handleLogout} style={styles.logoutButton}>
-          Logout
-        </button>
-      </aside>
+      {/* Embedded sidebar removed — global AppSidebar from PegawaiShell takes over */}
 
       <main style={styles.main}>
         <header style={styles.hero}>

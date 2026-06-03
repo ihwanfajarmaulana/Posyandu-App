@@ -61,6 +61,7 @@ export default function TambahBalita() {
 
   const emptyForm = {
     nama: '',
+    user_id: '',
     jenis_kelamin: 'L',
     kota_kelahiran: '',
     tanggal_lahir: '',
@@ -79,6 +80,7 @@ export default function TambahBalita() {
   const [form, setForm] = useState(emptyForm)
   const [balitaData, setBalitaData] = useState(null)
   const [usiaBulan, setUsiaBulan] = useState(null)
+  const [orangTuaList, setOrangTuaList] = useState([])
 
   useEffect(() => {
     if (!isEdit) return
@@ -98,6 +100,7 @@ export default function TambahBalita() {
 
         setForm({
           nama: data?.nama || '',
+          user_id: data?.user_id || data?.orang_tua?.id || '',
           jenis_kelamin: data?.jenis_kelamin || 'L',
           kota_kelahiran: data?.kota_kelahiran || '',
           tanggal_lahir: data?.tanggal_lahir || '',
@@ -131,6 +134,27 @@ export default function TambahBalita() {
     }
   }, [form.tanggal_lahir])
 
+  // Load the list of parent (orang tua) accounts. The balita MUST be linked to
+  // one of these (user_id) or it will never show up on that parent's ortu app.
+  useEffect(() => {
+    let mounted = true
+    API.get('/users', { params: { role: 'orang_tua', limit: 200 } })
+      .then((res) => { if (mounted) setOrangTuaList(res.data?.data || []) })
+      .catch(() => { if (mounted) setOrangTuaList([]) })
+    return () => { mounted = false }
+  }, [])
+
+  // Picking a parent links the child + auto-fills mother name/phone if empty
+  const handleParentSelect = (value) => {
+    const parent = orangTuaList.find((u) => String(u.id) === String(value))
+    setForm((prev) => ({
+      ...prev,
+      user_id: value,
+      nama_ibu: prev.nama_ibu || parent?.nama || '',
+      no_telepon_ibu: prev.no_telepon_ibu || parent?.no_telepon || '',
+    }))
+  }
+
   const handleChange = (field, value) => {
     setForm((prev) => ({ ...prev, [field]: value }))
   }
@@ -153,10 +177,12 @@ export default function TambahBalita() {
     if (!form.nama.trim()) { setError('Nama lengkap balita wajib diisi.'); return }
     if (!form.tanggal_lahir) { setError('Tanggal lahir wajib diisi.'); return }
     if (!form.jenis_kelamin) { setError('Jenis kelamin wajib dipilih.'); return }
+    if (!isEdit && !form.user_id) { setError('Pilih akun orang tua agar data balita muncul di aplikasi orang tua.'); return }
     if (!form.nama_ibu.trim()) { setError('Nama ibu wajib diisi.'); return }
 
     const payload = {
       nama: form.nama,
+      user_id: form.user_id || undefined,
       jenis_kelamin: form.jenis_kelamin,
       kota_kelahiran: form.kota_kelahiran,
       tanggal_lahir: form.tanggal_lahir,
@@ -207,30 +233,7 @@ export default function TambahBalita() {
 
   return (
     <div style={styles.page}>
-      {/* Sidebar */}
-      <aside style={styles.sidebar}>
-        <button type="button" onClick={() => navigate('/dashboard')} style={styles.brand}>
-          PosyanduCeria
-        </button>
-        <nav style={styles.nav}>
-          {sidebarMenus.map((menu) => (
-            <Link
-              key={menu.label}
-              to={menu.to}
-              style={{
-                ...styles.navLink,
-                ...(isActive(menu.to) ? styles.navLinkActive : {}),
-              }}
-            >
-              <span style={styles.navIcon}>{menu.icon}</span>
-              <span>{menu.label}</span>
-            </Link>
-          ))}
-        </nav>
-        <button type="button" onClick={handleLogout} style={styles.logoutButton}>
-          Logout
-        </button>
-      </aside>
+      {/* Embedded sidebar removed — global AppSidebar from PegawaiShell takes over */}
 
       {/* Main */}
       <main style={styles.main}>
@@ -412,6 +415,29 @@ export default function TambahBalita() {
                 <div style={styles.sectionHeader}>
                   <div style={styles.sectionNumber}>2</div>
                   <h2 style={styles.sectionTitle}>Data Orang Tua / Wali</h2>
+                </div>
+
+                {/* Parent ACCOUNT selector — links the balita to a real ortu account
+                    so the child appears on the parent's app. */}
+                <div style={styles.formGrid1}>
+                  <div style={styles.formGroup}>
+                    <label style={styles.label}>
+                      Akun Orang Tua (Pemilik Data) <span style={styles.required}>*</span>
+                    </label>
+                    <select
+                      value={form.user_id}
+                      onChange={(e) => handleParentSelect(e.target.value)}
+                      style={styles.input}
+                    >
+                      <option value="">— Pilih akun orang tua —</option>
+                      {orangTuaList.map((u) => (
+                        <option key={u.id} value={u.id}>{u.nama} — {u.email}</option>
+                      ))}
+                    </select>
+                    <p style={{ margin: '6px 0 0', fontSize: 12, color: '#876D5D', fontWeight: 600 }}>
+                      Wajib dipilih agar data balita muncul di aplikasi orang tua (ortu).
+                    </p>
+                  </div>
                 </div>
 
                 <div style={styles.formGrid3}>

@@ -18,6 +18,13 @@ const buildPayload = (body = {}) => {
 
 const getByBalita = async (req, res) => {
   try {
+    // Ortu ownership guard — a parent may only read penanganan for their own balita
+    const balita = await Balita.findByPk(req.params.balita_id)
+    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' })
+    if (req.user.role === 'orang_tua' && balita.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Anda tidak memiliki akses ke data balita ini' })
+    }
+
     const data = await Penanganan.findAll({
       where: {
         balita_id: req.params.balita_id,
@@ -64,6 +71,13 @@ const create = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Tanggal penanganan wajib diisi',
+      })
+    }
+    // Tindakan column is NOT NULL in the DB — guard it here for a clear 422.
+    if (!payload.tindakan || !String(payload.tindakan).trim()) {
+      return res.status(422).json({
+        success: false,
+        message: 'Tindakan penanganan wajib diisi',
       })
     }
 

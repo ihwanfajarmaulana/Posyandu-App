@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
 import { GreenHeaderDecorations } from '../components/Decorations'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 const colors = {
   green: '#4E724C',
@@ -77,6 +78,9 @@ export default function Dashboard() {
     const stored = JSON.parse(localStorage.getItem('user') || '{}')
     return stored.nama ? stored : { nama: '' }
   })
+  // Bumps every time the tab regains focus so we re-fetch and pick up any
+  // weight/height/etc. that pegawai just added on their side.
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     let cancelled = false
@@ -114,7 +118,7 @@ export default function Dashboard() {
         if (!cancelled) setLoadingAnak(false)
       })
     return () => { cancelled = true }
-  }, [])
+  }, [refresh])
 
   const usia = anak ? hitungUsia(anak.tanggal_lahir) : '-'
   const isLakiLaki = anak?.jenis_kelamin === 'L'
@@ -174,28 +178,44 @@ export default function Dashboard() {
                 <div style={styles.childPhoto}>
                   <Icon name="user" size={64} color={colors.green} />
                 </div>
-                <div style={styles.childInfo}>
-                  <h2 style={styles.childName}>{anak.nama}</h2>
-                  <div style={styles.childTags}>
-                    <span style={styles.tagGender}>
-                      <CheckSmall /> {isLakiLaki ? 'Laki-laki' : 'Perempuan'}
-                    </span>
-                    <span style={styles.childAge}>{usia}</span>
+                <div style={styles.childMain}>
+                  {/* Top row: name + tags (left) and ID Anak (right) */}
+                  <div style={styles.childTopRow}>
+                    <div style={styles.childInfo}>
+                      <h2 style={styles.childName}>{anak.nama}</h2>
+                      <div style={styles.childTags}>
+                        <span style={styles.tagGender}>
+                          <CheckSmall /> {isLakiLaki ? 'Laki-laki' : 'Perempuan'}
+                        </span>
+                        <span style={styles.childAge}>{usia}</span>
+                      </div>
+                      <span style={styles.tagSehat}>
+                        <CheckSmall /> {anak.status || 'Sehat'}
+                      </span>
+                    </div>
+                    <div style={styles.idAnakBox}>
+                      <span style={styles.idIconWrap}><IdIcon /></span>
+                      <div>
+                        <div style={styles.statLabel}>ID Anak</div>
+                        <div style={styles.idValue}>{anak.nik || '-'}</div>
+                      </div>
+                    </div>
                   </div>
-                  <span style={styles.tagSehat}>
-                    <CheckSmall /> {anak.status || 'Sehat'}
-                  </span>
+
                   {daftarAnak.length > 1 && (
-                    <div style={{ marginTop: 10, fontSize: 12, color: colors.mutedBrown, fontWeight: 600 }}>
-                      Anda memiliki {daftarAnak.length} anak terdaftar — pilih lewat menu Tumbuh Kembang.
+                    <div style={{ fontSize: 12, color: colors.mutedBrown, fontWeight: 600 }}>
+                      Anda memiliki {daftarAnak.length} anak terdaftar — pilih lewat menu Riwayat Pertumbuhan.
                     </div>
                   )}
-                </div>
-                <div style={styles.childStats}>
-                  <StatItem bg="linear-gradient(135deg, #DEEED8 0%, #CFEBD2 100%)" label="ID Anak" value={anak.nik || '-'} icon={<IdIcon />} />
-                  <StatItem bg="linear-gradient(135deg, #FFE0E0 0%, #FFD4D4 100%)" label="Berat Badan" value={anak.berat_badan ? anak.berat_badan + ' kg' : '-'} icon={<WeightIcon />} />
-                  <StatItem bg="linear-gradient(135deg, #FFF8D0 0%, #FFF1B8 100%)" label="Tinggi Badan" value={anak.tinggi_badan ? anak.tinggi_badan + ' cm' : '-'} icon={<HeightIcon />} />
-                  <StatItem bg="linear-gradient(135deg, #FFEFFA 0%, #FFE0F4 100%)" label="Status Gizi" value={anak.status_gizi || '-'} icon={<NutritionIcon />} />
+
+                  {/* Stats row: circular colored icons + dividers */}
+                  <div style={styles.statsRow}>
+                    <CircleStat color="#FD6C6E" label="Berat Badan" value={anak.berat_badan ? anak.berat_badan + ' kg' : '-'} icon={<WeightIcon color="#FFFFFF" />} />
+                    <span style={styles.statDivider} />
+                    <CircleStat color="#FFF15B" label="Tinggi Badan" value={anak.tinggi_badan ? anak.tinggi_badan + ' cm' : '-'} icon={<HeightIcon color="#8A7A12" />} />
+                    <span style={styles.statDivider} />
+                    <CircleStat color="#ECAEFF" label="Status Gizi" value={anak.status_gizi || '-'} icon={<NutritionIcon color="#B445CF" />} />
+                  </div>
                 </div>
               </div>
             )}
@@ -203,10 +223,10 @@ export default function Dashboard() {
 
           {/* Quick action cards */}
           <section style={{ ...styles.actionsGrid, position: 'relative', zIndex: 1 }}>
-            <ActionCard to="/jadwal" iconName="calendar" title="Agenda Posyandu" desc="Lihat Semua agenda posyandu untuk balita anda!" delayClass="pc-delay-2" />
-            <ActionCard to="/notifikasi" iconName="bell" title="Notifikasi" desc="Lihat pengingat kegiatan posyandu agar tidak melewatkan jadwal anak" delayClass="pc-delay-3" />
-            <ActionCard to="/chat" iconName="chat" title="Chat & Konsultasi" desc="Tanyakan seputar tumbuh kembang anak dengan AI!" badge="AI" delayClass="pc-delay-4" />
-            <ActionCard to="/rekomendasi" iconName="bookmark" title="Rekomendasi" desc="Dapatkan rekomendasi sesuai kebutuhan anak" delayClass="pc-delay-5" />
+            <ActionCard to="/jadwal" iconName="calendar-fill" title="Agenda Posyandu" desc="Lihat Semua agenda posyandu untuk balita anda!" delayClass="pc-delay-2" />
+            <ActionCard to="/tumbuh-kembang" iconName="growth-fill" title="Riwayat Pertumbuhan" desc="Pantau perkembangan balita berdasarkan hasil pemeriksaan" delayClass="pc-delay-3" />
+            <ActionCard to="/chat" iconName="chat-fill" title="Chat & Konsultasi" desc="Tanyakan seputar tumbuh kembang anak dengan AI!" badge="AI" delayClass="pc-delay-4" />
+            <ActionCard to="/rekomendasi" iconName="rekomendasi-fill" title="Rekomendasi" desc="Dapatkan rekomendasi sesuai kebutuhan anak" delayClass="pc-delay-5" />
           </section>
         </div>
 
@@ -227,10 +247,10 @@ export default function Dashboard() {
   )
 }
 
-function StatItem({ bg, label, value, icon }) {
+function CircleStat({ color, label, value, icon }) {
   return (
     <div style={styles.statItem}>
-      <div style={{ ...styles.statIconBox, background: bg }}>{icon}</div>
+      <div style={{ ...styles.statCircle, background: color }}>{icon}</div>
       <div>
         <div style={styles.statLabel}>{label}</div>
         <div style={styles.statValue}>{value}</div>
@@ -298,9 +318,9 @@ function IdIcon() {
   )
 }
 
-function WeightIcon() {
+function WeightIcon({ color = '#E04545' }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E04545" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M6 7h12l-1 12a2 2 0 0 1-2 2H9a2 2 0 0 1-2-2L6 7z" />
       <path d="M9 7V5a3 3 0 0 1 6 0v2" />
       <path d="M10 13l2-2 2 2" />
@@ -308,9 +328,9 @@ function WeightIcon() {
   )
 }
 
-function HeightIcon() {
+function HeightIcon({ color = '#C99B1F' }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#C99B1F" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="5" r="2" />
       <path d="M12 8v6M9 14h6M9 21l3-4 3 4" />
       <path d="M4 4v17M4 7h2M4 10h2M4 13h2M4 16h2M4 19h2" />
@@ -318,9 +338,9 @@ function HeightIcon() {
   )
 }
 
-function NutritionIcon() {
+function NutritionIcon({ color = '#D65FFA' }) {
   return (
-    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#D65FFA" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <svg width="25" height="25" viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 17l5-5 4 4 5-7 4 5" />
       <path d="M3 21h18" />
     </svg>
@@ -385,31 +405,42 @@ const styles = {
     flexShrink: 0, border: '3px solid #CFEBD2',
     boxShadow: '0 6px 18px rgba(101, 80, 64, 0.14)',
   },
+  // Right side of the card: name/ID row on top, stats row below
+  childMain: { flex: '1 1 360px', minWidth: 0, display: 'flex', flexDirection: 'column', gap: 14 },
+  childTopRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 16, flexWrap: 'wrap' },
   childInfo: { flex: '1 1 220px' },
   childName: { margin: 0, fontSize: 26, fontWeight: 800, color: colors.brown },
-  childTags: { display: 'flex', alignItems: 'center', gap: 12, margin: '10px 0', flexWrap: 'wrap' },
+  childTags: { display: 'flex', alignItems: 'center', gap: 12, margin: '8px 0', flexWrap: 'wrap' },
   tagGender: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
-    padding: '3px 10px', color: colors.green,
-    fontSize: 12, fontWeight: 700, textDecoration: 'underline',
+    color: '#3287EF',
+    fontSize: 13, fontWeight: 700, textDecoration: 'underline',
   },
   childAge: { fontSize: 13, color: colors.brown, fontWeight: 600 },
   tagSehat: {
     display: 'inline-flex', alignItems: 'center', gap: 5,
-    padding: '4px 12px', background: colors.greenSoft, color: colors.green,
-    borderRadius: 999, fontSize: 12, fontWeight: 700,
+    padding: '4px 12px', background: '#CEFCBD', color: colors.green,
+    borderRadius: 999, fontSize: 13, fontWeight: 700,
   },
-  childStats: {
-    display: 'flex', gap: 20, flexWrap: 'wrap',
-    paddingLeft: 16, borderLeft: '1px dashed ' + colors.tan,
-  },
-  statItem: { display: 'flex', alignItems: 'center', gap: 10 },
-  statIconBox: {
-    width: 48, height: 48, borderRadius: 12,
+  // ID Anak labelled box (top-right of the card)
+  idAnakBox: { display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0 },
+  idIconWrap: {
+    width: 40, height: 40, borderRadius: 10,
+    background: 'linear-gradient(135deg, #DEEED8 0%, #CFEBD2 100%)',
     display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
   },
+  idValue: { fontSize: 15, fontWeight: 800, color: colors.brown, marginTop: 2 },
+  // Stats row with colored circular icons + vertical dividers
+  statsRow: { display: 'flex', alignItems: 'center', gap: 18, flexWrap: 'wrap' },
+  statDivider: { width: 1, height: 46, background: colors.brown, opacity: 0.22, display: 'inline-block', flexShrink: 0 },
+  statItem: { display: 'flex', alignItems: 'center', gap: 11 },
+  statCircle: {
+    width: 50, height: 50, borderRadius: '50%',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+    boxShadow: '0 3px 8px rgba(0,0,0,0.14)',
+  },
   statLabel: { fontSize: 12, color: colors.mutedBrown, fontWeight: 700 },
-  statValue: { fontSize: 18, fontWeight: 800, color: colors.brown, marginTop: 2 },
+  statValue: { fontSize: 22, fontWeight: 800, color: colors.brown, marginTop: 2, lineHeight: 1.1 },
   actionsGrid: {
     display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
     gap: 16, marginBottom: 28,
