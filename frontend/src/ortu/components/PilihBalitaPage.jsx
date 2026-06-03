@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from './SidebarLayout'
 import { GreenHeaderDecorations, CreamSectionDecorations } from './Decorations'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 /* ──────────────────────────────────────────────────────────────────────────
    PilihBalitaPage — SHARED "Pilih Balita" picker (ortu POV).
@@ -124,6 +125,7 @@ export default function PilihBalitaPage({
   const [showProfile, setShowProfile] = useState(false)
   const navigate = useNavigate()
   const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     let cancelled = false
@@ -136,7 +138,7 @@ export default function PilihBalitaPage({
       .catch(() => { if (!cancelled) setRows(demoRows) })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [refresh])
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()

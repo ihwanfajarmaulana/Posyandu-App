@@ -3,6 +3,13 @@ const { Op } = require('sequelize');
 
 const getByBalita = async (req, res) => {
   try {
+    // Ortu ownership guard — a parent may only read imunisasi for their own balita
+    const balita = await Balita.findByPk(req.params.balita_id);
+    if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
+    if (req.user.role === 'orang_tua' && balita.user_id !== req.user.id) {
+      return res.status(403).json({ success: false, message: 'Anda tidak memiliki akses ke data balita ini' });
+    }
+
     const data = await Imunisasi.findAll({
       where: { balita_id: req.params.balita_id },
       order: [['tanggal_pemberian', 'ASC']],
@@ -33,6 +40,15 @@ const create = async (req, res) => {
   try {
     const balita = await Balita.findByPk(req.params.balita_id);
     if (!balita) return res.status(404).json({ success: false, message: 'Balita tidak ditemukan' });
+
+    const { nama_vaksin, tanggal_pemberian } = req.body;
+    if (!nama_vaksin || !String(nama_vaksin).trim()) {
+      return res.status(422).json({ success: false, message: 'Nama vaksin wajib diisi' });
+    }
+    if (!tanggal_pemberian) {
+      return res.status(422).json({ success: false, message: 'Tanggal pemberian wajib diisi' });
+    }
+
     const imunisasi = await Imunisasi.create({
       ...req.body,
       balita_id: req.params.balita_id,

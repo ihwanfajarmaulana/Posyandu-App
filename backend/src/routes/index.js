@@ -52,7 +52,7 @@ router.delete('/imunisasi/:id', authenticate, authorize('admin'), imunisasiCtrl.
 
 // KUNJUNGAN
 router.get('/kunjungan', authenticate, kunjunganCtrl.getAll);
-router.post('/kunjungan', authenticate, authorize('admin'), kunjunganCtrl.create);
+router.post('/kunjungan', authenticate, kunjunganCtrl.create);
 router.put('/kunjungan/:id', authenticate, authorize('admin'), kunjunganCtrl.update);
 router.delete('/kunjungan/:id', authenticate, authorize('admin'), kunjunganCtrl.remove);
 
@@ -71,15 +71,20 @@ router.post('/notifikasi/broadcast', authenticate, authorize('admin'), notifikas
 
 // REKOMENDASI
 router.get('/balita/:balita_id/rekomendasi', authenticate, rekomendasiCtrl.getByBalita);
+// Alias untuk POV orang tua dari frontend teman
+router.get('/rekomendasi/anak/:balita_id', authenticate, rekomendasiCtrl.getByBalita);
 router.post('/balita/:balita_id/rekomendasi/generate', authenticate, authorize('admin'), rekomendasiCtrl.generate);
 router.post('/balita/:balita_id/rekomendasi', authenticate, authorize('admin'), rekomendasiCtrl.createManual);
 
 // CHAT
 router.get('/chat/:balita_id', authenticate, chatCtrl.getRiwayat);
 router.post('/chat/:balita_id', authenticate, chatCtrl.kirimPesan);
+router.delete('/chat/:balita_id/session/:session_id', authenticate, chatCtrl.hapusRiwayat)
 
 // PENANGANAN
 router.get('/balita/:balita_id/penanganan', authenticate, penangananCtrl.getByBalita);
+// Alias untuk POV orang tua dari frontend teman
+router.get('/penanganan/anak/:balita_id', authenticate, penangananCtrl.getByBalita);
 router.post('/balita/:balita_id/penanganan', authenticate, authorize('admin'), penangananCtrl.create);
 router.put('/penanganan/:id', authenticate, authorize('admin'), penangananCtrl.update);
 router.delete('/penanganan/:id', authenticate, authorize('admin'), penangananCtrl.remove);

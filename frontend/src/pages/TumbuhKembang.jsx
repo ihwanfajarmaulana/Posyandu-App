@@ -1,479 +1,2018 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import API from '../api'
-import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
-import { GreenHeaderDecorations, CreamSectionDecorations } from '../components/Decorations'
 
-/* ──────────────────────────────────────────────────────────────────────────
-   RIWAYAT PERTUMBUHAN — one child's growth history (ortu / read-only view).
+const fontFamily = '"Segoe UI", Arial, Helvetica, sans-serif'
 
-   Matches the Figma "Riwayat Pertumbuhan" design:
-     green header + Data Anak card + Status Gizi card
-     → 3 WHO growth charts
-     → Tentang Grafik + Z-Score legend
-     → Riwayat Pengukuran table
-   Opened from the Pilih Balita page as /tumbuh-kembang/:id.
-   ────────────────────────────────────────────────────────────────────────── */
-
-const colors = {
-  green: '#4E724C',
-  greenDark: '#3F633E',
-  greenSoft: '#CFEBD2',
-  cream: '#FFF5F8',
-  tan: '#F2DFD1',
-  brown: '#655040',
-  mutedBrown: '#6A6A6A',
-  white: '#FFFFFF',
-  blue: '#3287EF',
-  pink: '#D65FFA',
-  red: '#E63946',
-  redSoft: '#FFD4D4',
-  statusBg: '#CEFCBD',
-  tableHeadBlue: '#E4ECF8',
-  tentangPink: '#F2D1D1',
-}
-
-const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des']
-
-/* ─── Demo data (used when backend has nothing, e.g. demo-* ids) ─── */
-const demoChildren = {
-  'demo-1': { id: 'demo-1', nama: 'Ellea Araga', jenis_kelamin: 'P', tanggal_lahir: '2021-02-02', nik: 'AN-10240', nama_ibu: 'Valecia Sanjaya' },
-  'demo-2': { id: 'demo-2', nama: 'Elang Araga', jenis_kelamin: 'L', tanggal_lahir: '2023-10-02', nik: 'AN-10339', nama_ibu: 'Valecia Sanjaya' },
-}
-const demoHistory = [
-  { id: 'h1', tanggal_ukur: '2026-07-05', berat_badan: 12.5, tinggi_badan: 88.0, status_gizi: 'gizi_baik', z_score_bb: -0.5, z_score_tb: 0, z_score_bb_tb: 0.3 },
-  { id: 'h2', tanggal_ukur: '2026-05-20', berat_badan: 11.8, tinggi_badan: 85.0, status_gizi: 'gizi_baik', z_score_bb: -0.2, z_score_tb: -0.7, z_score_bb_tb: 0 },
-  { id: 'h3', tanggal_ukur: '2026-03-15', berat_badan: 11.2, tinggi_badan: 82.0, status_gizi: 'gizi_baik', z_score_bb: -0.4, z_score_tb: -0.9, z_score_bb_tb: 0.1 },
-  { id: 'h4', tanggal_ukur: '2026-01-10', berat_badan: 10.4, tinggi_badan: 79.0, status_gizi: 'gizi_baik', z_score_bb: -0.3, z_score_tb: -1.0, z_score_bb_tb: 0 },
-  { id: 'h5', tanggal_ukur: '2025-11-12', berat_badan: 9.5, tinggi_badan: 76.0, status_gizi: 'gizi_baik', z_score_bb: -0.5, z_score_tb: -1.1, z_score_bb_tb: -0.1 },
+const sidebarMenus = [
+  { icon: '🏠', label: 'Beranda', to: '/dashboard', activePaths: ['/dashboard'] },
+  { icon: '📈', label: 'Tumbuh Kembang', to: '/tumbuh-kembang', activePaths: ['/tumbuh-kembang'] },
+  { icon: '💉', label: 'Imunisasi', to: '/imunisasi', activePaths: ['/imunisasi'] },
+  { icon: '📅', label: 'Jadwal Posyandu', to: '/jadwal', activePaths: ['/jadwal'] },
+  { icon: '🏥', label: 'Kunjungan', to: '/riwayatkunjungan', activePaths: ['/riwayatkunjungan', '/catatkunjungan'] },
+  { icon: '📝', label: 'Penanganan & Rekomendasi', to: '/penanganan-rekomendasi', activePaths: ['/penanganan-rekomendasi', '/rekomendasi-balita'] },
+  { icon: '👶', label: 'Daftar Balita', to: '/daftar-balita', activePaths: ['/daftar-balita'] },
+  { icon: '➕', label: 'Tambah Balita', to: '/tambah-balita', activePaths: ['/tambah-balita'] },
+  { icon: '📋', label: 'Laporan Penimbangan', to: '/rekap-penimbangan', activePaths: ['/rekap-penimbangan'] },
+  { icon: '👤', label: 'Profil', to: '/profil', activePaths: ['/profil'] },
+  { icon: '⚙️', label: 'Pengaturan', to: '/pengaturan', activePaths: ['/pengaturan'] },
 ]
 
-/* ─── Helpers ─── */
-function getList(r) {
-  if (Array.isArray(r?.data)) return r.data
-  if (Array.isArray(r?.data?.data)) return r.data.data
-  return []
+const getToday = () => {
+  const date = new Date()
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
 }
-function getData(r) { return r?.data?.data || r?.data || null }
 
-function calcUsia(tanggalLahir) {
-  if (!tanggalLahir) return '-'
-  const lahir = new Date(tanggalLahir)
-  const now = new Date()
-  const bulan = (now.getFullYear() - lahir.getFullYear()) * 12 + (now.getMonth() - lahir.getMonth())
-  const tahun = Math.floor(bulan / 12)
-  const sisa = bulan % 12
-  if (tahun === 0) return sisa + ' Bulan'
-  return sisa === 0 ? tahun + ' Tahun' : tahun + ' Tahun ' + sisa + ' Bulan'
+const formatUsia = (usiaBulan) => {
+  if (usiaBulan === undefined || usiaBulan === null || Number.isNaN(Number(usiaBulan))) {
+    return '-'
+  }
+
+  const total = Number(usiaBulan)
+  const tahun = Math.floor(total / 12)
+  const bulan = total % 12
+
+  if (tahun <= 0) return `${bulan} Bulan`
+  if (bulan === 0) return `${tahun} Tahun`
+  return `${tahun} Tahun ${bulan} Bulan`
 }
-function usiaSingkat(tanggalLahir, tanggalUkur) {
-  if (!tanggalLahir) return '-'
-  const lahir = new Date(tanggalLahir)
-  const ref = tanggalUkur ? new Date(tanggalUkur) : new Date()
-  const bulan = (ref.getFullYear() - lahir.getFullYear()) * 12 + (ref.getMonth() - lahir.getMonth())
-  const tahun = Math.floor(bulan / 12)
-  const sisa = bulan % 12
-  return tahun + ' th ' + sisa + ' bln'
+
+const formatJenisKelamin = (value) => {
+  if (value === 'L') return 'Laki-laki'
+  if (value === 'P') return 'Perempuan'
+  return value || '-'
 }
-function formatDate(value) {
+
+const formatTanggal = (value) => {
   if (!value) return '-'
-  const d = new Date(value)
-  if (Number.isNaN(d.getTime())) return '-'
-  return `${String(d.getDate()).padStart(2, '0')} ${monthNames[d.getMonth()]} ${d.getFullYear()}`
-}
-function formatDecimal(value) {
-  if (value === null || value === undefined || value === '') return '-'
-  const n = Number(value)
-  if (Number.isNaN(n)) return value
-  return new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(n)
-}
-function mapStatusGizi(st) {
-  const map = { gizi_baik: 'Normal', gizi_kurang: 'Gizi Kurang', gizi_lebih: 'Gizi Lebih', gizi_buruk: 'Gizi Buruk', obesitas: 'Obesitas', stunting: 'Stunting' }
-  return map[(st || '').toLowerCase()] || 'Normal'
-}
-function isBadStatus(st) {
-  return ['stunting', 'gizi_buruk', 'gizi_kurang'].includes((st || '').toLowerCase())
-}
-/* Z-score → label + "-0,5 (Normal)" style string */
-function zLabel(z) {
-  if (z == null || z === '') return '-'
-  const n = Number(z)
-  if (Number.isNaN(n)) return '-'
-  let label = 'Normal'
-  if (n < -3) label = 'Stunting'
-  else if (n < -2) label = 'Risiko'
-  const txt = new Intl.NumberFormat('id-ID', { maximumFractionDigits: 1 }).format(n)
-  return `${txt} (${label})`
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '-'
+  return date.toLocaleDateString('id-ID', {
+    day: '2-digit',
+    month: 'long',
+    year: 'numeric',
+  })
 }
 
-export default function TumbuhKembang() {
-  const { id } = useParams()
-  const navigate = useNavigate()
-  const [child, setChild] = useState(null)
-  const [history, setHistory] = useState([])
-  const [latest, setLatest] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [showProfile, setShowProfile] = useState(false)
-  const user = JSON.parse(localStorage.getItem('user') || '{}')
+const getAvatar = (jenisKelamin) => {
+  return jenisKelamin === 'P' ? '👧' : '👦'
+}
 
-  useEffect(() => {
-    let cancelled = false
-    setLoading(true)
+const labelStatusGizi = (value) => {
+  const map = {
+    gizi_buruk: 'Gizi Buruk',
+    gizi_kurang: 'Gizi Kurang',
+    gizi_baik: 'Gizi Baik',
+    gizi_lebih: 'Gizi Lebih',
+    obesitas: 'Obesitas',
+    Normal: 'Gizi Baik',
+    Kurang: 'Gizi Kurang',
+    Berlebih: 'Gizi Lebih',
+    'Perlu Pemeriksaan': 'Perlu Pemeriksaan',
+  }
+  return map[value] || value || 'Gizi Baik'
+}
 
-    async function load() {
-      if (!id) { navigate('/tumbuh-kembang'); return }
+const statusGiziBadgeStyle = (status) => {
+  switch ((status || '').toLowerCase()) {
+    case 'gizi_buruk':
+      return { background: '#FDDEDE', color: '#B91C1C' } // merah
+    case 'gizi_kurang':
+      return { background: '#FEF3C7', color: '#bdad37' } // kuning/oranye
+    case 'gizi_lebih':
+      return { background: '#FFEDD5', color: '#C2410C' } // oranye
+    case 'gizi_baik':
+    default:
+      return { background: '#C8FDB6', color: '#4E724D' } // hijau
+  }
+}
 
-      // Demo path (no backend)
-      if (String(id).startsWith('demo-')) {
-        if (!cancelled) {
-          setChild(demoChildren[id] || demoChildren['demo-2'])
-          setHistory(demoHistory)
-          setLatest(demoHistory[0])
-          setLoading(false)
-        }
-        return
-      }
+const getStatusGizi = (beratBadan, tinggiBadan, usiaBulan) => {
+  const bb = Number(beratBadan)
+  const tb = Number(tinggiBadan)
+  const usia = Number(usiaBulan) || 0
 
-      try {
-        const [childRes, histRes, ringkasanRes] = await Promise.all([
-          API.get('/balita/' + id),
-          API.get('/balita/' + id + '/pertumbuhan').catch(() => ({ data: { data: [] } })),
-          API.get('/balita/' + id + '/ringkasan').catch(() => ({ data: { data: {} } })),
-        ])
-        if (cancelled) return
-        setChild(getData(childRes))
-        const hist = getList(histRes)
-        setHistory(hist)
-        const ringkasan = getData(ringkasanRes) || {}
-        const sorted = [...hist].sort((a, b) => new Date(b.tanggal_ukur || 0) - new Date(a.tanggal_ukur || 0))
-        setLatest(ringkasan.pertumbuhan_terakhir || sorted[0] || null)
-      } catch {
-        if (!cancelled) navigate('/tumbuh-kembang')
-      } finally {
-        if (!cancelled) setLoading(false)
-      }
-    }
+  if (!bb || !tb) return 'gizi_baik'
 
-    load()
-    return () => { cancelled = true }
-  }, [id, navigate])
+  const isStunting = tb < (45 + usia * 0.7)
+  const bbKurang = bb < (3.5 + usia * 0.18)
+  const bbLebih = bb > (5 + usia * 0.4)
 
-  // Newest-first for the table
-  const sortedHistory = useMemo(
-    () => [...history].sort((a, b) => new Date(b.tanggal_ukur || 0) - new Date(a.tanggal_ukur || 0)),
-    [history]
-  )
-  // Oldest-first for the charts (so the line reads left→right over time)
-  const chartHistory = useMemo(() => [...sortedHistory].reverse(), [sortedHistory])
+  if (isStunting && bbKurang) return 'gizi_kurang'
+  if (isStunting) return 'gizi_kurang'
+  if (bbKurang) return 'gizi_kurang'
+  if (bbLebih) return 'gizi_lebih'
+  return 'gizi_baik'
+}
 
-  const isLaki = child?.jenis_kelamin === 'L'
-  const statusGizi = latest?.status_gizi
-  const bad = isBadStatus(statusGizi)
+const getZScoreStatus = (value) => {
+  const z = Number(value)
+  if (Number.isNaN(z)) return 'Normal'
+  if (z < -3) return 'Sangat Kurang'
+  if (z < -2) return 'Risiko'
+  if (z <= 2) return 'Normal'
+  return 'Berlebih'
+}
+
+const safeNumber = (value) => {
+  const number = Number(value)
+  return Number.isNaN(number) ? 0 : number
+}
+
+const normalizeRiwayat = (data) => {
+  const list = Array.isArray(data)
+    ? data
+    : Array.isArray(data?.data)
+    ? data.data
+    : Array.isArray(data?.riwayat)
+    ? data.riwayat
+    : []
+
+  return list.map((item, index) => ({
+    id: item.id || `local-${index}`,
+    tanggal_pengukuran:
+      item.tanggal_pengukuran ||
+      item.tanggal_ukur ||
+      item.tanggal_kunjungan ||
+      item.created_at ||
+      getToday(),
+    usia_bulan: item.usia_bulan,
+    berat_badan: item.berat_badan || item.bb || item.berat || '',
+    tinggi_badan: item.tinggi_badan || item.tb || item.tinggi || '',
+    lingkar_kepala: item.lingkar_kepala || item.lk || '',
+    bb_u: item.bb_u ?? item.zscore_bb_u ?? item.z_score_bb_u ?? 0,
+    tb_u: item.tb_u ?? item.zscore_tb_u ?? item.z_score_tb_u ?? 0,
+    bb_tb: item.bb_tb ?? item.zscore_bb_tb ?? item.z_score_bb_tb ?? 0,
+    status_berat: item.status_berat || '',
+    status_tinggi: item.status_tinggi || '',
+    status_gizi: item.status_gizi || 'gizi_baik',
+    catatan: item.catatan || '',
+  }))
+}
+
+const buildRecommendation = (item, balita) => {
+  const status = (item?.status_gizi || 'gizi_baik').toLowerCase()
+  const usia = Number(item?.usia_bulan || balita?.usia_bulan || 0)
+
+  const nutrisi =
+    status === 'gizi_buruk'
+      ? [
+          '⚠️ Segera bawa anak ke puskesmas atau dokter — gizi buruk memerlukan penanganan medis segera.',
+          'Jangan berikan suplemen atau obat apapun tanpa arahan dokter.',
+          'Sementara menunggu penanganan: berikan makanan yang mudah dicerna seperti bubur, telur, atau ASI (jika masih menyusu).',
+          'Pastikan anak terhidrasi dengan baik — berikan air putih atau oralit jika ada tanda dehidrasi.',
+        ]
+      : status === 'gizi_kurang'
+      ? [
+          'Tingkatkan konsumsi protein seperti telur, ikan, ayam, tahu, dan tempe setiap hari.',
+          'Tambahkan sumber kalori sehat seperti alpukat, kentang, keju, dan susu full cream.',
+          'Berikan makan utama 3 kali sehari ditambah selingan bergizi 2 kali sehari.',
+          'Kurangi minuman manis yang dapat menurunkan nafsu makan anak.',
+          'Tanyakan ke petugas posyandu tentang program PMT (Pemberian Makanan Tambahan).',
+        ]
+      : status === 'gizi_lebih' || status === 'obesitas'
+      ? [
+          'Atur porsi makan anak agar tetap seimbang — jangan kurangi drastis, cukup sesuaikan.',
+          'Kurangi makanan tinggi gula, gorengan, dan snack kemasan.',
+          'Perbanyak sayur, buah, dan air putih setiap hari.',
+          'Biasakan pola makan teratur tanpa ngemil berlebihan di luar jam makan.',
+          'Jangan terapkan diet ketat pada balita — konsultasikan ke dokter atau ahli gizi.',
+        ]
+      : [
+          'Pertahankan pola makan seimbang dengan protein, sayur, dan buah.',
+          'Berikan variasi menu agar anak tetap semangat makan.',
+          'Pastikan asupan cairan cukup setiap hari.',
+          'Batasi makanan instan dan minuman tinggi gula.',
+        ]
+
+  const aktivitas =
+    usia < 24
+      ? [
+          'Ajak anak bermain aktif sesuai usia, misalnya merangkak, berjalan, atau memindahkan benda.',
+          'Latih motorik halus melalui bermain balok, menyusun mainan, atau menggenggam benda aman.',
+          'Batasi screen time sebisa mungkin.',
+        ]
+      : [
+          'Ajak anak bermain aktif minimal 60 menit setiap hari.',
+          'Latih motorik halus melalui menggambar, menyusun balok, atau mewarnai.',
+          'Kurangi penggunaan gadget berlebihan.',
+          'Pastikan anak cukup tidur dan punya jam istirahat yang teratur.',
+        ]
+
+  const imunisasi =
+    usia < 24
+      ? [
+          'Pastikan imunisasi dasar lengkap sesuai usia.',
+          'Cek buku KIA untuk memastikan jadwal imunisasi berikutnya.',
+          'Datang ke posyandu/layanan kesehatan sesuai jadwal.',
+        ]
+      : [
+          'Pastikan imunisasi lanjutan tetap diikuti sesuai jadwal.',
+          'Simpan buku KIA untuk monitoring imunisasi.',
+          'Konsultasikan ke petugas bila ada imunisasi yang terlewat.',
+        ]
+
+  const pantauan =
+    status === 'gizi_buruk'
+      ? [
+          '🔴 Pantau kondisi anak setiap hari — perhatikan tanda edema (bengkak), kelesuan, atau tidak mau makan.',
+          'Timbang berat badan minimal seminggu sekali selama masa pemulihan.',
+          'Ikuti program pemulihan gizi di puskesmas secara rutin.',
+          'Segera kembali ke dokter jika kondisi anak memburuk.',
+        ]
+      : status === 'gizi_kurang'
+      ? [
+          'Timbang berat badan setiap 2 minggu untuk memantau perkembangan.',
+          'Catat asupan makan harian anak agar mudah dilaporkan ke petugas.',
+          'Pantau tinggi badan dan lingkar kepala sesuai jadwal posyandu.',
+          'Bila berat badan tidak naik dalam 1 bulan, segera konsultasi ke dokter.',
+        ]
+      : [
+          'Lakukan penimbangan berat badan secara berkala setiap bulan.',
+          'Pantau tinggi badan dan lingkar kepala sesuai jadwal.',
+          'Perhatikan perubahan nafsu makan, aktivitas, dan kualitas tidur anak.',
+          'Bila ada penurunan kondisi, segera konsultasikan ke petugas kesehatan.',
+        ]
+
+  return { nutrisi, aktivitas, imunisasi, pantauan }
+}
+
+function Sidebar({ location, navigate, handleLogout }) {
+  const isActive = (menu) => {
+    return menu.activePaths.some((path) => location.pathname.startsWith(path))
+  }
 
   return (
-    <div style={s.page}>
-      <SharedSidebar activePath="/tumbuh-kembang" />
+    <aside style={styles.sidebar}>
+      <button type="button" onClick={() => navigate('/dashboard')} style={styles.brand}>
+        PosyanduCeria
+      </button>
 
-      <main style={s.main}>
-        {/* GREEN SECTION: header + Data Anak (one continuous gradient, no seam) */}
-        <section style={{ ...s.greenSection, position: 'relative', overflow: 'hidden' }}>
-          <GreenHeaderDecorations />
-          <header style={{ ...s.headerRow, position: 'relative', zIndex: 1 }} className="pc-slide-down">
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-              <button type="button" onClick={() => navigate('/tumbuh-kembang')} style={s.backBtn} aria-label="Kembali ke pilih balita" className="pc-btn pc-focusable">
-                <Icon name="arrow-left" size={20} color={colors.cream} strokeWidth={2.4} />
-              </button>
-              <h1 style={s.headerTitle}>Riwayat Pertumbuhan</h1>
-            </div>
-            <div style={s.headerRight}>
-              <button type="button" onClick={() => navigate('/notifikasi')} style={s.bellBtn} aria-label="Notifikasi" className="pc-btn pc-bell">
-                <Icon name="bell" size={20} color={colors.brown} />
-              </button>
-              <button type="button" onClick={() => setShowProfile(true)} style={{ ...s.userPill, border: 'none', cursor: 'pointer' }} className="pc-btn">
-                <div style={s.userAvatar}>{(user.nama || 'U').slice(0, 1).toUpperCase()}</div>
-                <span style={s.userName}>{user.nama || 'User'}</span>
-              </button>
-            </div>
-          </header>
+      <nav style={styles.nav}>
+        {sidebarMenus.map((menu) => (
+          <Link
+            key={menu.label}
+            to={menu.to}
+            style={{
+              ...styles.navLink,
+              ...(isActive(menu) ? styles.navLinkActive : {}),
+            }}
+          >
+            <span style={styles.navIcon}>{menu.icon}</span>
+            <span>{menu.label}</span>
+          </Link>
+        ))}
+      </nav>
 
-          <h2 style={{ ...s.sectionTitleWhite, position: 'relative', zIndex: 1 }}>Data Anak</h2>
-          <div style={{ position: 'relative', zIndex: 1 }}>
-            {loading ? (
-              <div style={s.stateBox}>Memuat data anak...</div>
-            ) : !child ? (
-              <div style={s.stateBox}>Data anak tidak ditemukan.</div>
-            ) : (
-              <div style={s.dataAnakCard} className="pc-scale-in">
-                <div style={s.dataAnakLeft}>
-                  <div style={s.childPhoto}>
-                    <Icon name="user" size={64} color={colors.green} />
-                  </div>
-                  <div style={s.childInfo}>
-                    <h3 style={s.childName}>{child.nama}</h3>
-                    <div style={s.childTagsRow}>
-                      <span style={{ ...s.tagGender, color: isLaki ? colors.blue : colors.pink }}>
-                        {isLaki ? '♂ Laki-laki' : '♀ Perempuan'}
-                      </span>
-                      <span style={s.childAge}>{calcUsia(child.tanggal_lahir)}</span>
-                    </div>
-                    <div style={s.detailGrid}>
-                      <DetailRow label="Tanggal Lahir" value={formatDate(child.tanggal_lahir)} />
-                      <DetailRow label="ID Anak" value={child.nik || '-'} />
-                      <DetailRow label="Nama Ibu" value={child.nama_ibu || child.orang_tua?.nama || '-'} />
-                      <DetailRow label="Posyandu" value={child.posyandu || 'Posyandu Ceria'} />
-                      <DetailRow label="Kunjungan Terakhir" value={formatDate(latest?.tanggal_ukur)} />
-                    </div>
-                  </div>
-                </div>
-
-                <div style={{ ...s.statusCard, background: bad ? '#FCE4E4' : colors.greenSoft }}>
-                  <div style={s.statusTitle}>Status Gizi Terakhir</div>
-                  <div style={{ ...s.statusPill, background: bad ? colors.redSoft : '#CEFCBD', color: bad ? colors.red : colors.green }}>
-                    <span style={{ fontSize: 18 }}>{bad ? '⚠️' : '✓'}</span>
-                    {mapStatusGizi(statusGizi)}
-                  </div>
-                  <div style={s.statusNote}>
-                    Berdasarkan pengukuran<br />{formatDate(latest?.tanggal_ukur)}
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        </section>
-
-        {/* CREAM SECTION: charts + legend + table */}
-        <section style={{ ...s.creamSection, position: 'relative', overflow: 'hidden' }}>
-          <CreamSectionDecorations />
-
-          {/* Charts */}
-          <h2 style={{ ...s.sectionTitle, position: 'relative', zIndex: 1 }}>Grafik Tumbuh Kembang</h2>
-          <div style={{ ...s.chartGrid, position: 'relative', zIndex: 1 }} className="pc-fade-in">
-            <GrowthChart chartId="bbu" title="Berat Badan per Usia (BB/U)" zScore={latest?.z_score_bb ?? 0} yLabel="Berat (kg)" xLabel="Usia (bulan)"
-              values={chartHistory.map((h) => Number(h.berat_badan)).filter((v) => !Number.isNaN(v))} />
-            <GrowthChart chartId="tbu" title="Tinggi Badan per Usia (TB/U)" zScore={latest?.z_score_tb ?? 0} yLabel="Tinggi (cm)" xLabel="Usia (bulan)"
-              values={chartHistory.map((h) => Number(h.tinggi_badan)).filter((v) => !Number.isNaN(v))} />
-            <GrowthChart chartId="bbtb" title="Berat Badan per Tinggi Badan (BB/TB)" zScore={latest?.z_score_bb_tb ?? 0} yLabel="Berat (kg)" xLabel="Tinggi (cm)"
-              values={chartHistory.map((h) => Number(h.berat_badan)).filter((v) => !Number.isNaN(v))} />
-          </div>
-
-          {/* Tentang grafik + legend */}
-          <div style={{ ...s.tentangCard, position: 'relative', zIndex: 1 }} className="pc-fade-in pc-delay-2">
-            <div style={s.tentangLeft}>
-              <div style={s.tentangIconBox}><ClipboardIcon /></div>
-              <div>
-                <div style={s.tentangTitle}>Tentang Grafik Tumbuh Kembang</div>
-                <p style={s.tentangDesc}>
-                  Grafik ini menunjukkan status pertumbuhan anak berdasarkan standar WHO.
-                  Z-Score adalah indikator yang digunakan untuk menilai apakah pertumbuhan
-                  anak sesuai, kurang, atau lebih dari standar
-                </p>
-              </div>
-            </div>
-            <div style={s.tentangRight}>
-              <div style={s.legendTitle}>Keterangan Z-Score WHO</div>
-              <div style={s.legendList}>
-                <LegendRow color="#FF1010" label="< -3 SD" right="→ Stunting / Sangat Kurang" />
-                <LegendRow color="#FFE9AE" label="-3 SD s/d -2 SD" right="→ Risiko" />
-                <LegendRow color="#E4F8EB" label="-2 SD s/d +2 SD" right="→ Normal" />
-              </div>
-            </div>
-          </div>
-
-          {/* Riwayat Pengukuran table */}
-          <h2 style={{ ...s.sectionTitle, position: 'relative', zIndex: 1, marginTop: 26 }}>Riwayat Pengukuran</h2>
-          <div style={{ ...s.tableCard, position: 'relative', zIndex: 1 }} className="pc-fade-in pc-delay-3">
-            <div style={{ ...s.tableHead, background: colors.tableHeadBlue }}>
-              <span>Tanggal</span>
-              <span>Usia</span>
-              <span>Berat Badan (Kg)</span>
-              <span>Tinggi Badan (Cm)</span>
-              <span>BB/U</span>
-              <span>TB/U</span>
-              <span>BB/TB</span>
-              <span>Status Gizi</span>
-            </div>
-            {loading ? (
-              <div style={s.stateBox}>Memuat...</div>
-            ) : sortedHistory.length === 0 ? (
-              <div style={s.stateBox}>Belum ada data pengukuran.</div>
-            ) : (
-              sortedHistory.map((row, i) => {
-                const rowBad = isBadStatus(row.status_gizi)
-                return (
-                  <div key={row.id || i} style={{ ...s.tableRow, background: i === 0 ? '#F4F8FF' : colors.white }}>
-                    <span style={s.tcell}>{formatDate(row.tanggal_ukur)}</span>
-                    <span style={s.tcell}>{usiaSingkat(child?.tanggal_lahir, row.tanggal_ukur)}</span>
-                    <span style={s.tcell}>{formatDecimal(row.berat_badan)}</span>
-                    <span style={s.tcell}>{formatDecimal(row.tinggi_badan)}</span>
-                    <span style={s.tcell}>{zLabel(row.z_score_bb)}</span>
-                    <span style={s.tcell}>{zLabel(row.z_score_tb)}</span>
-                    <span style={s.tcell}>{zLabel(row.z_score_bb_tb)}</span>
-                    <span>
-                      <span style={{ ...s.statusBadge, background: rowBad ? colors.redSoft : colors.statusBg, color: rowBad ? colors.red : colors.green }}>
-                        {mapStatusGizi(row.status_gizi)}
-                      </span>
-                    </span>
-                  </div>
-                )
-              })
-            )}
-          </div>
-        </section>
-      </main>
-
-      <ProfilePopup open={showProfile} onClose={() => setShowProfile(false)} />
-    </div>
+      <button type="button" onClick={handleLogout} style={styles.logoutButton}>
+        Logout
+      </button>
+    </aside>
   )
 }
 
-/* ─── Sub-components ─── */
-function DetailRow({ label, value }) {
-  return (
-    <div style={s.detailRow}>
-      <span style={{ color: colors.brown, fontWeight: 700, minWidth: 150 }}>{label}</span>
-      <span style={{ color: colors.brown, fontWeight: 700 }}>{value}</span>
-    </div>
-  )
-}
+function GrowthChart({ title, label, unit, dataKey, history }) {
+  const data = [...history]
+    .sort((a, b) => new Date(a.tanggal_pengukuran) - new Date(b.tanggal_pengukuran))
+    .slice(-6)
 
-function LegendRow({ color, label, right }) {
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12 }}>
-      <span style={{ width: 16, height: 14, borderRadius: 3, background: color, flexShrink: 0, border: '1px solid rgba(0,0,0,0.08)' }} />
-      <span style={{ fontWeight: 700, color: colors.brown, minWidth: 120 }}>{label}</span>
-      <span style={{ color: colors.brown, fontWeight: 500 }}>{right}</span>
-    </div>
-  )
-}
+  const values = data.map((item) => safeNumber(item[dataKey])).filter((value) => value > 0)
 
-function ClipboardIcon() {
-  return (
-    <svg width="34" height="34" viewBox="0 0 24 24" fill="none" stroke="#655040" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="6" y="3" width="12" height="18" rx="2" />
-      <path d="M9 7h6M9 11h6M9 15h4" />
-    </svg>
-  )
-}
+  const minValue = values.length ? Math.min(...values) : 0
+  const maxValue = values.length ? Math.max(...values) : 10
+  const range = maxValue - minValue || 1
 
-/* SVG growth chart with WHO color bands + the child's measurement line (green). */
-function GrowthChart({ chartId, title, zScore, yLabel, xLabel, values = [] }) {
-  const bad = Number(zScore) <= -2
-  const W = 220, H = 120, PADL = 26, PADB = 22
-  const maxData = values.length ? Math.max(...values) : 1
-  const maxY = Math.max(1, maxData * 1.25)
-  const n = values.length
-  const toX = (i) => PADL + (n <= 1 ? 0.5 : i / (n - 1)) * (W - PADL - 8)
-  const toY = (v) => (H - PADB) - (v / maxY) * (H - PADB - 8)
-  const gradId = 'whoBands-' + chartId
+  const points = data.map((item, index) => {
+    const value = safeNumber(item[dataKey])
+    const x = 38 + index * (220 / Math.max(data.length - 1, 1))
+    const y = 150 - ((value - minValue) / range) * 85
+    return { x, y, value }
+  })
+
+  const path = points
+    .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+    .join(' ')
 
   return (
-    <div style={s.chartCard}>
-      <div style={s.chartHeader}>
-        <span style={s.chartTitle}>{title}</span>
-        <span style={{ fontSize: 13, color: colors.mutedBrown }}>ⓘ</span>
+    <div style={styles.chartCard}>
+      <div style={styles.chartHeader}>
+        <h3 style={styles.chartTitle}>{title}</h3>
+        <span style={styles.smallInfo}>ⓘ</span>
       </div>
-      <div style={{ ...s.chartBadge, background: bad ? colors.redSoft : '#CEFCBD', color: bad ? colors.red : colors.green }}>
-        {bad ? 'Perlu Perhatian' : 'Normal'} (Z-Score {Number(zScore).toFixed(1)})
-      </div>
-      <div style={{ fontSize: 10, color: colors.mutedBrown, marginTop: 6, marginLeft: 2, fontWeight: 700 }}>{yLabel}</div>
 
-      <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto', display: 'block', marginTop: 2 }}>
+      <span style={styles.chartStatus}>Normal</span>
+
+      <svg viewBox="0 0 300 185" style={styles.chartSvg}>
         <defs>
-          <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0" stopColor="#F8B7B7" /><stop offset="0.14" stopColor="#F8B7B7" />
-            <stop offset="0.14" stopColor="#FFE9AE" /><stop offset="0.30" stopColor="#FFE9AE" />
-            <stop offset="0.30" stopColor="#CFEBD2" /><stop offset="0.72" stopColor="#CFEBD2" />
-            <stop offset="0.72" stopColor="#FFE9AE" /><stop offset="0.86" stopColor="#FFE9AE" />
-            <stop offset="0.86" stopColor="#F8B7B7" /><stop offset="1" stopColor="#F8B7B7" />
+          <linearGradient id={`${dataKey}-zone`} x1="0" x2="0" y1="0" y2="1">
+            <stop offset="0%" stopColor="#FAD7D7" />
+            <stop offset="45%" stopColor="#FFE6B8" />
+            <stop offset="62%" stopColor="#DDF4D7" />
+            <stop offset="100%" stopColor="#FFE6B8" />
           </linearGradient>
         </defs>
-        <rect x={PADL} y="4" width={W - PADL - 8} height={H - PADB - 4} fill={`url(#${gradId})`} rx="4" />
 
-        {/* Y axis ticks */}
-        {[0, 0.25, 0.5, 0.75, 1].map((f, i) => (
-          <text key={i} x={PADL - 4} y={toY(maxY * f) + 3} fontSize="7" textAnchor="end" fill="#876D5D">{Math.round(maxY * f)}</text>
+        <rect x="32" y="28" width="230" height="126" rx="8" fill={`url(#${dataKey}-zone)`} />
+
+        {[0, 1, 2, 3].map((line) => (
+          <line
+            key={line}
+            x1="32"
+            y1={42 + line * 31}
+            x2="262"
+            y2={42 + line * 31}
+            stroke="#ffffff"
+            strokeWidth="1"
+            opacity="0.9"
+          />
         ))}
-        {/* Z-score side labels */}
-        {[{ l: '+3', y: 0.95, c: '#E94B4B' }, { l: '+2', y: 0.78, c: '#C99B1F' }, { l: '0', y: 0.5, c: '#4E724C' }, { l: '-2', y: 0.2, c: '#C99B1F' }, { l: '-3', y: 0.06, c: '#E94B4B' }].map((z, i) => (
-          <text key={i} x={W - 2} y={toY(maxY * z.y) + 3} fontSize="7" fontWeight="700" textAnchor="end" fill={z.c}>{z.l}</text>
+
+        {[0, 1, 2, 3, 4].map((line) => (
+          <line
+            key={line}
+            x1={38 + line * 56}
+            y1="28"
+            x2={38 + line * 56}
+            y2="154"
+            stroke="#ffffff"
+            strokeWidth="1"
+            opacity="0.9"
+          />
         ))}
-        {/* Data line + dots (green) */}
-        {n > 0 && (
-          <polyline points={values.map((v, i) => `${toX(i)},${toY(v)}`).join(' ')} fill="none" stroke="#2FA866" strokeWidth="1.6" />
-        )}
-        {values.map((v, i) => (
-          <circle key={i} cx={toX(i)} cy={toY(v)} r="2" fill="#FFFFFF" stroke="#2FA866" strokeWidth="1.4" />
+
+        <text x="42" y="24" fontSize="9" fill="#6B5247">
+          {label} ({unit})
+        </text>
+
+        <text x="130" y="174" fontSize="9" fill="#6B5247">
+          Usia (bulan)
+        </text>
+
+        {path && <path d={path} fill="none" stroke="#4DBA7A" strokeWidth="3" />}
+
+        {points.map((point, index) => (
+          <circle
+            key={index}
+            cx={point.x}
+            cy={point.y}
+            r="4"
+            fill="#ffffff"
+            stroke="#4DBA7A"
+            strokeWidth="2"
+          />
         ))}
+
+        <text x="266" y="52" fontSize="9" fill="#E85A5A">
+          +3
+        </text>
+        <text x="266" y="80" fontSize="9" fill="#E85A5A">
+          +2
+        </text>
+        <text x="266" y="108" fontSize="9" fill="#4DBA7A">
+          0
+        </text>
+        <text x="266" y="136" fontSize="9" fill="#E85A5A">
+          -2
+        </text>
       </svg>
 
-      <div style={{ fontSize: 10, color: colors.mutedBrown, fontWeight: 700, marginLeft: 26, marginTop: 2 }}>{xLabel}</div>
-      <div style={s.chartLegend}>
-        <span style={{ width: 14, height: 2, background: '#2FA866', display: 'inline-block' }} />
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#FFFFFF', border: '1.5px solid #2FA866', display: 'inline-block' }} />
+      <div style={styles.chartLegend}>
+        <span style={styles.legendLine} />
         Hasil Pengukuran Anak
       </div>
     </div>
   )
 }
 
-/* ─── Styles ─── */
-const TCOLS = '1fr 0.8fr 1.1fr 1.1fr 1fr 1fr 1fr 0.95fr'
+function FormInput({ label, type = 'text', value, onChange, required = false, step, placeholder }) {
+  return (
+    <div style={styles.formGroup}>
+      <label style={styles.label}>{label}</label>
+      <input
+        type={type}
+        value={value}
+        step={step}
+        required={required}
+        placeholder={placeholder}
+        onChange={(e) => onChange(e.target.value)}
+        style={styles.input}
+      />
+    </div>
+  )
+}
 
-const s = {
-  page: { display: 'flex', minHeight: '100vh', background: colors.cream, fontFamily: "'Noto Sans', sans-serif" },
-  main: { flex: 1, minWidth: 0 },
+function RecommendationSection({
+  title,
+  items,
+  icon,
+  iconBg,
+  onEdit,
+}) { {
+  return (
+    <div style={styles.recommendationItem}>
+      <div style={styles.recommendationIconWrap}>
+        <div style={{ ...styles.recommendationIcon, background: iconBg }}>{icon}</div>
+      </div>
 
-  greenSection: { background: 'linear-gradient(180deg, #5C8259 0%, #4E724C 45%, #3F633E 100%)', padding: '24px 30px 32px', boxShadow: '0 4px 18px rgba(63,99,62,0.18)' },
-  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 20, flexWrap: 'wrap', marginBottom: 18 },
-  backBtn: { width: 38, height: 38, borderRadius: '50%', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.35)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', flexShrink: 0 },
-  headerTitle: { margin: 0, fontWeight: 800, fontSize: 26, color: colors.cream },
-  headerRight: { display: 'flex', alignItems: 'center', gap: 10 },
-  bellBtn: { width: 38, height: 38, borderRadius: '50%', background: colors.tan, border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
-  userPill: { background: colors.tan, borderRadius: 30, padding: '4px 14px 4px 4px', display: 'flex', alignItems: 'center', gap: 8 },
-  userAvatar: { width: 30, height: 30, borderRadius: '50%', background: colors.brown, color: colors.white, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 800 },
-  userName: { fontWeight: 700, fontSize: 13, color: colors.brown },
+      <div style={styles.recommendationContent}>
+        <h3 style={styles.recommendationItemTitle}>{title}</h3>
+        {onEdit && (
+          <button type="button" onClick={onEdit} style={styles.recommendationEditButton}>✏️</button>
+        )}
+        <ul style={styles.recommendationList}>
+          {items.map((text, index) => (
+            <li key={index} style={styles.recommendationListItem}>
+              {text}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  )
+}
+}
 
-  sectionTitleWhite: { margin: '0 0 14px', fontSize: 18, fontWeight: 800, color: colors.white },
-  stateBox: { background: colors.cream, borderRadius: 14, padding: 26, textAlign: 'center', color: colors.mutedBrown, fontWeight: 700 },
+const emptyForm = {
+  tanggal_pengukuran: getToday(),
+  berat_badan: '',
+  tinggi_badan: '',
+  lingkar_kepala: '',
+  status_gizi: 'gizi_baik',
+  catatan: '',
+}
 
-  dataAnakCard: { background: colors.cream, borderRadius: 18, padding: '28px 30px', display: 'flex', alignItems: 'stretch', gap: 26, boxShadow: '0 6px 20px rgba(0,0,0,0.08)', flexWrap: 'wrap' },
-  dataAnakLeft: { flex: '1 1 440px', display: 'flex', gap: 26, alignItems: 'center' },
-  childPhoto: { width: 150, height: 150, borderRadius: '50%', background: 'linear-gradient(135deg, #DEEED8 0%, #CFEBD2 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '4px solid #FFFFFF', boxShadow: '0 6px 16px rgba(101,80,64,0.14)', flexShrink: 0 },
-  childInfo: { flex: 1, minWidth: 0 },
-  childName: { margin: '0 0 6px', fontSize: 24, fontWeight: 800, color: colors.brown },
-  childTagsRow: { display: 'flex', alignItems: 'center', gap: 16, marginBottom: 14, flexWrap: 'wrap' },
-  tagGender: { fontWeight: 700, fontSize: 13 },
-  childAge: { fontSize: 13, color: colors.brown, fontWeight: 700 },
-  detailGrid: { display: 'flex', flexDirection: 'column', gap: 8 },
-  detailRow: { display: 'flex', alignItems: 'center', gap: 12, fontSize: 13, color: colors.brown },
+export default function TumbuhKembang() {
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { id } = useParams()
 
-  statusCard: { flex: '0 1 250px', borderRadius: 15, padding: '20px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 12, justifyContent: 'center' },
-  statusTitle: { fontSize: 18, fontWeight: 600, color: colors.green, textAlign: 'center' },
-  statusPill: { display: 'inline-flex', alignItems: 'center', gap: 8, padding: '8px 22px', borderRadius: 999, fontWeight: 700, fontSize: 18, boxShadow: '0 2px 6px rgba(0,0,0,0.08)' },
-  statusNote: { fontSize: 13, color: colors.mutedBrown, textAlign: 'center', lineHeight: 1.45, fontWeight: 600 },
+  const user = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem('user') || '{}')
+    } catch {
+      return {}
+    }
+  }, [])
 
-  creamSection: { background: 'linear-gradient(180deg, #FFF5F8 0%, #FFEBF1 100%)', padding: '26px 30px 44px' },
-  sectionTitle: { margin: '0 0 14px', fontSize: 18, fontWeight: 800, color: colors.brown },
+  const [balita, setBalita] = useState(null)
+  const [history, setHistory] = useState([])
+  const [showForm, setShowForm] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [editId, setEditId] = useState(null)
 
-  chartGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: 16, marginBottom: 22 },
-  chartCard: { background: colors.white, borderRadius: 12, padding: 14, boxShadow: '0 4px 14px rgba(0,0,0,0.06)' },
-  chartHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
-  chartTitle: { fontSize: 13, fontWeight: 800, color: colors.brown },
-  chartBadge: { display: 'inline-block', padding: '4px 12px', borderRadius: 999, fontSize: 11, fontWeight: 800 },
-  chartLegend: { display: 'flex', alignItems: 'center', gap: 5, fontSize: 10, color: colors.mutedBrown, fontWeight: 700, marginTop: 6 },
+  const [selectedMeasurement, setSelectedMeasurement] = useState(null)
+  const [showRecommendation, setShowRecommendation] = useState(false)
+  const [isEditRecommendation, setIsEditRecommendation] = useState(false)
 
-  tentangCard: { background: colors.tentangPink, borderRadius: 14, padding: 18, display: 'flex', gap: 24, flexWrap: 'wrap' },
-  tentangLeft: { display: 'flex', gap: 14, alignItems: 'flex-start', flex: '1 1 320px' },
-  tentangIconBox: { width: 50, height: 50, borderRadius: 10, background: 'rgba(255,255,255,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
-  tentangTitle: { fontSize: 15, fontWeight: 800, color: colors.brown, marginBottom: 6 },
-  tentangDesc: { margin: 0, fontSize: 12, color: colors.brown, lineHeight: 1.5 },
-  tentangRight: { flex: '0 1 320px', borderLeft: '1px solid rgba(106,106,106,0.45)', paddingLeft: 18 },
-  legendTitle: { fontSize: 15, fontWeight: 800, color: colors.brown, marginBottom: 8 },
-  legendList: { display: 'flex', flexDirection: 'column', gap: 7 },
+  // Cek apakah datang dari RekomendasiBalita dengan mode edit
+  const isEditMode = location.state?.isEditMode === true
 
-  tableCard: { background: colors.white, borderRadius: 10, overflow: 'hidden', boxShadow: '0 4px 14px rgba(0,0,0,0.06)' },
-  tableHead: { display: 'grid', gridTemplateColumns: TCOLS, gap: 8, alignItems: 'center', padding: '10px 16px', fontSize: 13, fontWeight: 800, color: colors.brown },
-  tableRow: { display: 'grid', gridTemplateColumns: TCOLS, gap: 8, alignItems: 'center', padding: '12px 16px', borderTop: '1px solid #EEE', fontSize: 12 },
-  tcell: { color: colors.brown, fontWeight: 600 },
-  statusBadge: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', padding: '3px 14px', borderRadius: 999, fontSize: 12, fontWeight: 700 },
+  const [form, setForm] = useState({ ...emptyForm })
+
+  const latest = history[0]
+  const statusGizi = latest?.status_gizi || form.status_gizi || balita?.status_gizi || 'Normal'
+
+  useEffect(() => {
+    const status = getStatusGizi(form.berat_badan, form.tinggi_badan, balita?.usia_bulan)
+    setForm((prev) => ({ ...prev, status_gizi: status }))
+  }, [form.berat_badan, form.tinggi_badan, balita?.usia_bulan])
+
+  useEffect(() => {
+    loadPageData()
+  }, [id])
+
+  const loadPageData = async () => {
+    setLoading(true)
+    setError('')
+
+    try {
+      let selectedBalita = null
+
+      try {
+        const detailRes = await API.get(`/balita/${id}`)
+        selectedBalita = detailRes.data?.data || detailRes.data
+      } catch {
+        const listRes = await API.get('/balita?limit=100')
+        const list = Array.isArray(listRes.data)
+          ? listRes.data
+          : Array.isArray(listRes.data?.data)
+          ? listRes.data.data
+          : []
+        selectedBalita = list.find((item) => String(item.id) === String(id))
+      }
+
+      if (!selectedBalita) {
+        setError('Data balita tidak ditemukan.')
+        return
+      }
+
+      setBalita(selectedBalita)
+
+      let apiHistory = []
+      try {
+        const historyRes = await API.get(`/balita/${id}/pertumbuhan`)
+        apiHistory = normalizeRiwayat(historyRes.data)
+      } catch {
+        apiHistory = []
+      }
+
+      const mergedHistory = [...apiHistory]
+        .filter((item) => item.tanggal_pengukuran)
+        .sort((a, b) => new Date(b.tanggal_pengukuran) - new Date(a.tanggal_pengukuran))
+
+      setHistory(mergedHistory)
+
+      // Jika datang dari RekomendasiBalita dengan mode edit, langsung tampilkan rekomendasi
+      if (location.state?.isEditMode && mergedHistory.length > 0) {
+        setSelectedMeasurement(mergedHistory[0])
+        setShowRecommendation(true)
+        setIsEditRecommendation(true)
+      }
+
+      if (mergedHistory.length > 0) {
+        setForm((prev) => ({
+          ...prev,
+          berat_badan: mergedHistory[0].berat_badan || '',
+          tinggi_badan: mergedHistory[0].tinggi_badan || '',
+          lingkar_kepala: mergedHistory[0].lingkar_kepala || '',
+          status_gizi: mergedHistory[0].status_gizi || 'gizi_baik',
+        }))
+      } else {
+        setForm((prev) => ({
+          ...prev,
+          berat_badan: selectedBalita.berat_badan || selectedBalita.bb_terakhir || '',
+          tinggi_badan: selectedBalita.tinggi_badan || selectedBalita.tb_terakhir || '',
+          lingkar_kepala: selectedBalita.lingkar_kepala || selectedBalita.lk_terakhir || '',
+          status_gizi: selectedBalita.status_gizi || 'gizi_baik',
+        }))
+      }
+    } catch (err) {
+      setError(err.response?.data?.message || 'Gagal memuat data tumbuh kembang.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('token')
+    localStorage.removeItem('user')
+    navigate('/login')
+  }
+
+  const handleChange = (field, value) => {
+    setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  const openFormTambah = () => {
+    setEditId(null)
+    setForm({ ...emptyForm, tanggal_pengukuran: getToday() })
+    setShowForm(true)
+  }
+
+  const openFormEdit = (item) => {
+    setEditId(item.id)
+    setForm({
+      tanggal_pengukuran: item.tanggal_pengukuran || getToday(),
+      berat_badan: item.berat_badan || '',
+      tinggi_badan: item.tinggi_badan || '',
+      lingkar_kepala: item.lingkar_kepala || '',
+      status_gizi: item.status_gizi || 'gizi_baik',
+      catatan: item.catatan || '',
+    })
+    setShowForm(true)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const handleCloseForm = () => {
+    setShowForm(false)
+    setEditId(null)
+    setForm({ ...emptyForm, tanggal_pengukuran: getToday() })
+  }
+
+  const handleSubmit = async (e) => {
+    e.preventDefault()
+
+    if (!form.berat_badan || !form.tinggi_badan) {
+      alert('Berat badan dan tinggi badan wajib diisi.')
+      return
+    }
+
+    setSaving(true)
+
+    const payload = {
+      tanggal_ukur: form.tanggal_pengukuran,
+      berat_badan: Number(form.berat_badan),
+      tinggi_badan: Number(form.tinggi_badan),
+      lingkar_kepala: form.lingkar_kepala ? Number(form.lingkar_kepala) : null,
+      catatan: form.catatan,
+    }
+
+    try {
+      if (editId) {
+        const res = await API.put(`/pertumbuhan/${editId}`, payload)
+        const updated = normalizeRiwayat([
+          res.data?.data || {
+            ...payload,
+            id: editId,
+            tanggal_pengukuran: form.tanggal_pengukuran,
+            status_gizi: form.status_gizi,
+          },
+        ])[0]
+
+        setHistory((prev) =>
+          prev
+            .map((item) => (String(item.id) === String(editId) ? updated : item))
+            .sort((a, b) => new Date(b.tanggal_pengukuran) - new Date(a.tanggal_pengukuran))
+        )
+
+        alert('Data tumbuh kembang berhasil diperbarui.')
+      } else {
+        const res = await API.post(`/balita/${id}/pertumbuhan`, payload)
+        const newRecord = normalizeRiwayat([
+          res.data?.data || {
+            ...payload,
+            id: Date.now(),
+            tanggal_pengukuran: form.tanggal_pengukuran,
+            status_gizi: form.status_gizi,
+          },
+        ])[0]
+
+        setHistory((prev) =>
+          [newRecord, ...prev].sort(
+            (a, b) => new Date(b.tanggal_pengukuran) - new Date(a.tanggal_pengukuran)
+          )
+        )
+
+        alert('Data tumbuh kembang berhasil disimpan.')
+      }
+
+      handleCloseForm()
+    } catch (err) {
+      alert(err.response?.data?.message || 'Gagal menyimpan data tumbuh kembang.')
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  const handleDelete = async (item) => {
+    const konfirmasi = window.confirm(
+      `Hapus data pengukuran tanggal ${formatTanggal(item.tanggal_pengukuran)}?\nTindakan ini tidak bisa dibatalkan.`
+    )
+    if (!konfirmasi) return
+
+    try {
+      await API.delete(`/pertumbuhan/${item.id}`)
+      setHistory((prev) => prev.filter((h) => String(h.id) !== String(item.id)))
+      alert('Data berhasil dihapus.')
+    } catch (err) {
+      alert(err.response?.data?.message || 'Gagal menghapus data.')
+    }
+  }
+
+  const handleSelectMeasurement = (item) => {
+    setSelectedMeasurement(item)
+  }
+
+  const handleGenerateRecommendation = () => {
+  if (!selectedMeasurement) return
+
+  setIsEditRecommendation(false)
+  setShowRecommendation(true)
+
+  window.scrollTo({ top: 0, behavior: 'smooth' })
+}
+
+  const handleEditRecommendation = () => {
+  setIsEditRecommendation(true)
+}
+
+  const handleBackToHistory = () => {
+    setShowRecommendation(false)
+  }
+
+  const handleSaveRecommendation = () => {
+  if (!selectedMeasurement) return
+
+  const recommendation = buildRecommendation(selectedMeasurement, balita)
+
+  const existing =
+    JSON.parse(localStorage.getItem('rekomendasi_balita') || '[]')
+
+  const newRecommendation = {
+    id: Date.now(),
+    childId: balita?.id || id,
+    nama_anak: balita?.nama || '-',
+    jenis_kelamin: balita?.jenis_kelamin || 'L',
+    usia: formatUsia(balita?.usia_bulan),
+    ibu: balita?.nama_ibu || '-',
+    tanggal: selectedMeasurement.tanggal_pengukuran,
+    status_gizi: labelStatusGizi(selectedMeasurement.status_gizi),
+    dibuat_oleh: user?.nama || 'Petugas',
+    recommendation,
+  }
+
+  if (isEditRecommendation) {
+    const updated = existing.map((item) =>
+      item.childId === (balita?.id || id)
+        ? {
+            ...item,
+            recommendation,
+            tanggal: selectedMeasurement.tanggal_pengukuran,
+            status_gizi: labelStatusGizi(selectedMeasurement.status_gizi),
+          }
+        : item
+    )
+
+    localStorage.setItem(
+      'rekomendasi_balita',
+      JSON.stringify(updated)
+    )
+
+    alert('Rekomendasi berhasil diperbarui.')
+  } else {
+    existing.unshift(newRecommendation)
+
+    localStorage.setItem(
+      'rekomendasi_balita',
+      JSON.stringify(existing)
+    )
+
+    alert('Rekomendasi berhasil disimpan.')
+  }
+
+  navigate('/rekomendasi-balita')
+}
+
+  const recommendation = selectedMeasurement
+    ? buildRecommendation(selectedMeasurement, balita)
+    : null
+
+  if (showRecommendation && selectedMeasurement && recommendation) {
+    return (
+      <div style={styles.page}>
+        {/* Embedded <Sidebar/> removed — global AppSidebar from PegawaiShell takes over */}
+
+        <main style={styles.main}>
+          <header style={styles.header}>
+            <div style={styles.headerLeft}>
+              <button type="button" onClick={handleBackToHistory} style={styles.backButton}>
+                ←
+              </button>
+              <div>
+                <h1 style={styles.title}>Rekomendasi Balita</h1>
+                <p style={styles.subtitle}>Daftar rekomendasi berdasarkan riwayat tumbuh kembang</p>
+              </div>
+            </div>
+
+            <div style={styles.headerRight}>
+              <button type="button" style={styles.notificationButton}>
+                🔔
+              </button>
+              <button type="button" onClick={() => navigate('/profil')} style={styles.userBadge}>
+                👤 {user?.nama || 'User'}
+              </button>
+            </div>
+          </header>
+
+          <section style={styles.content}>
+            <section style={styles.profileCard}>
+              <div style={styles.photoBox}>
+                {balita?.foto ? (
+                  <img src={balita.foto} alt={balita.nama} style={styles.photo} />
+                ) : (
+                  <div style={styles.avatarFallback}>{getAvatar(balita?.jenis_kelamin)}</div>
+                )}
+              </div>
+
+              <div style={styles.childInfo}>
+                <h2 style={styles.childName}>{balita?.nama || '-'}</h2>
+
+                <div style={styles.childMeta}>
+                  <span
+                    style={{
+                      ...styles.genderText,
+                      color: balita?.jenis_kelamin === 'P' ? '#D364F7' : '#2F88F0',
+                    }}
+                  >
+                    {balita?.jenis_kelamin === 'P' ? '♀' : '♂'}{' '}
+                    {formatJenisKelamin(balita?.jenis_kelamin)}
+                  </span>
+
+                  <span style={styles.ageText}>{formatUsia(balita?.usia_bulan)}</span>
+                </div>
+
+                <div style={styles.infoGrid}>
+                  <div style={styles.infoRow}>
+                    <span>📅</span>
+                    <span>Tanggal Lahir</span>
+                    <strong>{formatTanggal(balita?.tanggal_lahir)}</strong>
+                  </div>
+
+                  <div style={styles.infoRow}>
+                    <span>🆔</span>
+                    <span>ID Anak</span>
+                    <strong>{balita?.nik || balita?.id || '-'}</strong>
+                  </div>
+
+                  <div style={styles.infoRow}>
+                    <span>👩</span>
+                    <span>Nama Ibu</span>
+                    <strong>{balita?.nama_ibu || '-'}</strong>
+                  </div>
+
+                  <div style={styles.infoRow}>
+                    <span>🏥</span>
+                    <span>Posyandu</span>
+                    <strong>{balita?.posyandu || 'Posyandu Ceria'}</strong>
+                  </div>
+
+                  <div style={styles.infoRow}>
+                    <span>📌</span>
+                    <span>Kunjungan Terakhir</span>
+                    <strong>{formatTanggal(selectedMeasurement.tanggal_pengukuran)}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div style={styles.statusCard}>
+                <h3 style={styles.statusTitle}>Status Gizi Terakhir</h3>
+                <div style={{ ...styles.statusBadge, ...statusGiziBadgeStyle(selectedMeasurement.status_gizi) }}>◎ {labelStatusGizi(selectedMeasurement.status_gizi)}</div>
+                <p style={styles.statusDesc}>
+                  Berdasarkan pengukuran
+                  <br />
+                  {formatTanggal(selectedMeasurement.tanggal_pengukuran)}
+                </p>
+              </div>
+            </section>
+
+            <div style={styles.recommendationGrid}>
+              <RecommendationSection
+                title="Nutrisi"
+                icon="🥗"
+                iconBg="#BBF7D0"
+                items={recommendation.nutrisi}
+                onEdit={isEditMode ? handleEditRecommendation : null}
+              />
+
+              <RecommendationSection
+                title="Aktivitas"
+                icon="⏱"
+                iconBg="#FEF08A"
+                items={recommendation.aktivitas}
+                onEdit={isEditMode ? handleEditRecommendation : null}
+              />
+
+              <RecommendationSection
+                title="Imunisasi"
+                icon="💉"
+                iconBg="#E9D5FF"
+                items={recommendation.imunisasi}
+                onEdit={isEditMode ? handleEditRecommendation : null}
+              />
+
+              <RecommendationSection
+                title="Pantauan"
+                icon="📈"
+                iconBg="#FECACA"
+                items={recommendation.pantauan}
+                onEdit={isEditMode ? handleEditRecommendation : null}
+              />
+            </div>
+
+            <div style={styles.saveRecommendationContainer}>
+              <button type="button" onClick={handleSaveRecommendation} style={styles.saveRecommendationButton}>
+                ✨ Simpan Rekomendasi
+              </button>
+            </div>
+          </section>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div style={styles.page}>
+      {/* Embedded <Sidebar/> removed — global AppSidebar from PegawaiShell takes over */}
+
+      <main style={styles.main}>
+        <header style={styles.header}>
+          <div style={styles.headerLeft}>
+            <button
+              type="button"
+              onClick={() => navigate('/tumbuh-kembang')}
+              style={styles.backButton}
+            >
+              ←
+            </button>
+            <div>
+              <h1 style={styles.title}>Tumbuh Kembang</h1>
+              <p style={styles.subtitle}>Riwayat pengukuran dan rekomendasi balita</p>
+            </div>
+          </div>
+
+          <div style={styles.headerRight}>
+            <button type="button" style={styles.notificationButton}>
+              🔔
+            </button>
+            <button type="button" onClick={() => navigate('/profil')} style={styles.userBadge}>
+              👤 {user?.nama || 'User'}
+            </button>
+          </div>
+        </header>
+
+        <section style={styles.content}>
+          {error && <div style={styles.errorBox}>{error}</div>}
+
+          <h2 style={styles.sectionTitle}>Data Anak</h2>
+
+          <section style={styles.profileCard}>
+            {loading ? (
+              <div style={styles.loadingBox}>Memuat data anak...</div>
+            ) : (
+              <>
+                <div style={styles.photoBox}>
+                  {balita?.foto ? (
+                    <img src={balita.foto} alt={balita.nama} style={styles.photo} />
+                  ) : (
+                    <div style={styles.avatarFallback}>{getAvatar(balita?.jenis_kelamin)}</div>
+                  )}
+                </div>
+
+                <div style={styles.childInfo}>
+                  <h2 style={styles.childName}>{balita?.nama || '-'}</h2>
+
+                  <div style={styles.childMeta}>
+                    <span
+                      style={{
+                        ...styles.genderText,
+                        color: balita?.jenis_kelamin === 'P' ? '#D364F7' : '#2F88F0',
+                      }}
+                    >
+                      {balita?.jenis_kelamin === 'P' ? '♀' : '♂'}{' '}
+                      {formatJenisKelamin(balita?.jenis_kelamin)}
+                    </span>
+                    <span style={styles.ageText}>{formatUsia(balita?.usia_bulan)}</span>
+                  </div>
+
+                  <div style={styles.infoGrid}>
+                    <div style={styles.infoRow}>
+                      <span>📅</span>
+                      <span>Tanggal Lahir</span>
+                      <strong>{formatTanggal(balita?.tanggal_lahir)}</strong>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span>🆔</span>
+                      <span>ID Anak</span>
+                      <strong>{balita?.nik || balita?.id || '-'}</strong>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span>👩</span>
+                      <span>Nama Ibu</span>
+                      <strong>{balita?.nama_ibu || '-'}</strong>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span>🏥</span>
+                      <span>Posyandu</span>
+                      <strong>{balita?.posyandu || 'Posyandu Ceria'}</strong>
+                    </div>
+                    <div style={styles.infoRow}>
+                      <span>📌</span>
+                      <span>Kunjungan Terakhir</span>
+                      <strong>
+                        {formatTanggal(
+                          latest?.tanggal_pengukuran ||
+                            balita?.kunjungan_terakhir ||
+                            balita?.updated_at
+                        )}
+                      </strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div style={styles.statusCard}>
+                  <h3 style={styles.statusTitle}>Status Gizi Terakhir</h3>
+                  <div style={{ ...styles.statusBadge, ...statusGiziBadgeStyle(statusGizi) }}>◎ {labelStatusGizi(statusGizi)}</div>
+                  <p style={styles.statusDesc}>
+                    Berdasarkan pengukuran
+                    <br />
+                    {formatTanggal(latest?.tanggal_pengukuran || getToday())}
+                  </p>
+                  <button type="button" onClick={openFormTambah} style={styles.addButton}>
+                    + Catat Tumbuh Kembang
+                  </button>
+                </div>
+              </>
+            )}
+          </section>
+
+          {showForm && (
+            <form onSubmit={handleSubmit} style={styles.formCard}>
+              <h2 style={styles.formTitle}>
+                {editId ? '✏️ Edit Data Tumbuh Kembang' : 'Catat Tumbuh Kembang Baru'}
+              </h2>
+
+              <div style={styles.formGrid}>
+                <FormInput
+                  label="Tanggal Pengukuran"
+                  type="date"
+                  value={form.tanggal_pengukuran}
+                  onChange={(value) => handleChange('tanggal_pengukuran', value)}
+                  required
+                />
+
+                <FormInput
+                  label="Berat Badan (kg)"
+                  type="number"
+                  step="0.1"
+                  value={form.berat_badan}
+                  onChange={(value) => handleChange('berat_badan', value)}
+                  placeholder="Contoh: 12.5"
+                  required
+                />
+
+                <FormInput
+                  label="Tinggi Badan (cm)"
+                  type="number"
+                  step="0.1"
+                  value={form.tinggi_badan}
+                  onChange={(value) => handleChange('tinggi_badan', value)}
+                  placeholder="Contoh: 88"
+                  required
+                />
+
+                <FormInput
+                  label="Lingkar Kepala (cm)"
+                  type="number"
+                  step="0.1"
+                  value={form.lingkar_kepala}
+                  onChange={(value) => handleChange('lingkar_kepala', value)}
+                  placeholder="Contoh: 47"
+                />
+
+                <div style={styles.formGroup}>
+                  <label style={styles.label}>Status Gizi</label>
+                  <div
+                    style={{
+                      ...styles.input,
+                      display: 'flex',
+                      alignItems: 'center',
+                      background: '#E8F5E8',
+                      color: '#2D6A2D',
+                      fontWeight: 700,
+                      cursor: 'default',
+                    }}
+                  >
+                    {labelStatusGizi(form.status_gizi)}
+                  </div>
+                </div>
+
+                <div style={styles.fullColumn}>
+                  <label style={styles.label}>Catatan Petugas</label>
+                  <textarea
+                    value={form.catatan}
+                    onChange={(e) => handleChange('catatan', e.target.value)}
+                    placeholder="Contoh: Nafsu makan baik, aktif bermain, dll"
+                    style={styles.textarea}
+                  />
+                </div>
+              </div>
+
+              <div style={styles.formActions}>
+                <button type="button" onClick={handleCloseForm} style={styles.cancelButton}>
+                  Batal
+                </button>
+                <button type="submit" disabled={saving} style={styles.saveButton}>
+                  {saving ? 'Menyimpan...' : editId ? 'Perbarui Data' : 'Simpan Data'}
+                </button>
+              </div>
+            </form>
+          )}
+
+          <section style={styles.chartSection}>
+            <h2 style={styles.contentTitle}>Grafik Tumbuh Kembang</h2>
+
+            <div style={styles.chartGrid}>
+              <GrowthChart
+                title="Berat Badan per Usia (BB/U)"
+                label="Berat"
+                unit="kg"
+                dataKey="berat_badan"
+                history={history}
+              />
+              <GrowthChart
+                title="Tinggi Badan per Usia (TB/U)"
+                label="Tinggi"
+                unit="cm"
+                dataKey="tinggi_badan"
+                history={history}
+              />
+              <GrowthChart
+                title="Berat Badan per Tinggi Badan (BB/TB)"
+                label="Berat"
+                unit="kg"
+                dataKey="berat_badan"
+                history={history}
+              />
+            </div>
+
+            <div style={styles.infoBoxGrid}>
+              <div style={styles.graphInfoBox}>
+                <div style={styles.graphInfoIcon}>📋</div>
+                <div>
+                  <h3 style={styles.infoBoxTitle}>Tentang Grafik Tumbuh Kembang</h3>
+                  <p style={styles.infoBoxText}>
+                    Grafik ini menunjukkan status pertumbuhan anak berdasarkan standar WHO.
+                    Z-Score adalah indikator yang digunakan untuk menilai apakah pertumbuhan anak
+                    sesuai, kurang, atau lebih dari standar.
+                  </p>
+                </div>
+              </div>
+
+              <div style={styles.zscoreBox}>
+                <h3 style={styles.infoBoxTitle}>Keterangan Z-Score WHO</h3>
+                <div style={styles.zscoreItem}>
+                  <span style={{ ...styles.zscoreColor, background: '#F36A6A' }} />
+                  &lt; -3 SD: Stunting / Sangat Kurang
+                </div>
+                <div style={styles.zscoreItem}>
+                  <span style={{ ...styles.zscoreColor, background: '#FFD37A' }} />
+                  -3 SD s/d -2 SD: Risiko
+                </div>
+                <div style={styles.zscoreItem}>
+                  <span style={{ ...styles.zscoreColor, background: '#DDF4D7' }} />
+                  -2 SD s/d +2 SD: Normal
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section style={styles.historySection}>
+            <h2 style={styles.contentTitle}>Riwayat Pengukuran</h2>
+
+            <div style={styles.tableCard}>
+              <table style={styles.table}>
+                <thead>
+                  <tr>
+                    <th style={styles.th}>Tanggal</th>
+                    <th style={styles.th}>Usia</th>
+                    <th style={styles.th}>Berat Badan (Kg)</th>
+                    <th style={styles.th}>Tinggi Badan (Cm)</th>
+                    <th style={styles.th}>BB/U</th>
+                    <th style={styles.th}>TB/U</th>
+                    <th style={styles.th}>BB/TB</th>
+                    <th style={styles.th}>Status Gizi</th>
+                    <th style={styles.th}>Aksi</th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {history.length === 0 ? (
+                    <tr>
+                      <td colSpan="9" style={styles.emptyTd}>
+                        Belum ada riwayat pengukuran.
+                      </td>
+                    </tr>
+                  ) : (
+                    history.map((item) => {
+                      const isSelected = selectedMeasurement?.id === item.id
+
+                      return (
+                        <tr
+                          key={item.id}
+                          onClick={() => handleSelectMeasurement(item)}
+                          style={{
+                            ...styles.clickableRow,
+                            background: isSelected ? '#F3E8FF' : 'transparent',
+                          }}
+                        >
+                          <td style={styles.td}>{formatTanggal(item.tanggal_pengukuran)}</td>
+                          <td style={styles.td}>{formatUsia(item.usia_bulan || balita?.usia_bulan)}</td>
+                          <td style={styles.td}>{item.berat_badan || '-'}</td>
+                          <td style={styles.td}>{item.tinggi_badan || '-'}</td>
+                          <td style={styles.td}>
+                            {item.bb_u ?? 0} ({getZScoreStatus(item.bb_u)})
+                          </td>
+                          <td style={styles.td}>
+                            {item.tb_u ?? 0} ({getZScoreStatus(item.tb_u)})
+                          </td>
+                          <td style={styles.td}>
+                            {item.bb_tb ?? 0} ({getZScoreStatus(item.bb_tb)})
+                          </td>
+                          <td style={styles.td}>
+                            <span
+                              style={{
+                                ...styles.tableStatus,
+                                background: ['gizi_buruk', 'gizi_kurang', 'Kurang'].includes(item.status_gizi)
+                                  ? '#FECACA'
+                                  : ['gizi_lebih', 'obesitas', 'Berlebih'].includes(item.status_gizi)
+                                  ? '#FED7AA'
+                                  : '#C8FDB6',
+                                color: ['gizi_buruk', 'gizi_kurang', 'Kurang'].includes(item.status_gizi)
+                                  ? '#991B1B'
+                                  : ['gizi_lebih', 'obesitas', 'Berlebih'].includes(item.status_gizi)
+                                  ? '#92400E'
+                                  : '#4E724D',
+                              }}
+                            >
+                              {labelStatusGizi(item.status_gizi)}
+                            </span>
+                          </td>
+                          <td style={styles.td}>
+                            <div style={styles.actionButtons}>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleSelectMeasurement(item)
+                                  handleGenerateRecommendation()
+                                }}
+                                style={styles.recommendButton}
+                              >
+                                ✨ Generate
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  openFormEdit(item)
+                                }}
+                                style={styles.editButton}
+                              >
+                                ✏️
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation()
+                                  handleDelete(item)
+                                }}
+                                style={styles.deleteButton}
+                              >
+                                🗑️
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+
+            {selectedMeasurement && !showRecommendation && (
+              <div style={styles.generateBar}>
+                <button type="button" onClick={handleGenerateRecommendation} style={styles.generateButton}>
+                  ✨ Generate Rekomendasi
+                </button>
+              </div>
+            )}
+          </section>
+        </section>
+      </main>
+    </div>
+  )
+}
+
+const styles = {
+  page: {
+    minHeight: '100vh',
+    display: 'flex',
+    background: '#4F724D',
+    fontFamily,
+  },
+  sidebar: {
+    width: 240,
+    minHeight: '100vh',
+    background: '#EAF0EF',
+    borderRight: '1px solid rgba(0,0,0,0.05)',
+    padding: '22px 14px 20px',
+    boxSizing: 'border-box',
+    display: 'flex',
+    flexDirection: 'column',
+    flexShrink: 0,
+    fontFamily,
+  },
+  brand: {
+    border: 'none',
+    background: 'transparent',
+    color: '#3D6B43',
+    fontSize: 27,
+    fontWeight: 700,
+    letterSpacing: '-0.6px',
+    textAlign: 'left',
+    cursor: 'pointer',
+    padding: '0 6px',
+    marginBottom: 28,
+    fontFamily,
+  },
+  nav: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: 8,
+    flex: 1,
+  },
+  navLink: {
+    minHeight: 44,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+    padding: '0 14px',
+    borderRadius: 12,
+    color: '#355C3C',
+    textDecoration: 'none',
+    fontSize: 15,
+    fontWeight: 500,
+    fontFamily,
+  },
+  navLinkActive: {
+    background: '#CDEBCD',
+    color: '#275031',
+    fontWeight: 700,
+  },
+  navIcon: {
+    width: 20,
+    display: 'inline-flex',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  logoutButton: {
+    minHeight: 46,
+    borderRadius: 12,
+    border: '1px solid rgba(61, 107, 67, 0.25)',
+    background: 'transparent',
+    color: '#355C3C',
+    fontSize: 14,
+    fontWeight: 600,
+    cursor: 'pointer',
+    fontFamily,
+  },
+  main: {
+    flex: 1,
+    minWidth: 0,
+    background: '#4F724D',
+    fontFamily,
+  },
+  header: {
+    padding: '28px 34px 14px',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: 20,
+    color: '#FFFFFF',
+    fontFamily,
+  },
+  headerLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+  },
+  backButton: {
+    border: 'none',
+    background: 'transparent',
+    color: '#FFFFFF',
+    fontSize: 34,
+    lineHeight: 1,
+    cursor: 'pointer',
+    padding: 0,
+    fontFamily,
+  },
+  title: {
+    margin: 0,
+    fontSize: 26,
+    fontWeight: 700,
+    letterSpacing: '-0.5px',
+    fontFamily,
+  },
+  subtitle: {
+    margin: '4px 0 0',
+    color: '#E7F2E6',
+    fontSize: 13,
+    fontWeight: 500,
+    fontFamily,
+  },
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  notificationButton: {
+    width: 34,
+    height: 34,
+    borderRadius: '50%',
+    border: 'none',
+    background: '#F7E5D8',
+    cursor: 'pointer',
+    fontSize: 16,
+  },
+  userBadge: {
+    border: 'none',
+    background: '#F7E5D8',
+    color: '#6C5145',
+    minHeight: 34,
+    padding: '0 14px',
+    borderRadius: 999,
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily,
+  },
+  content: {
+    padding: '0 34px 36px',
+    fontFamily,
+  },
+  errorBox: {
+    background: '#FEE2E2',
+    color: '#991B1B',
+    padding: 12,
+    borderRadius: 10,
+    marginBottom: 14,
+    fontSize: 14,
+    fontWeight: 500,
+  },
+  sectionTitle: {
+    margin: '4px 0 10px',
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: 700,
+    fontFamily,
+  },
+  contentTitle: {
+    margin: '0 0 16px',
+    color: '#6B5247',
+    fontSize: 20,
+    fontWeight: 700,
+    fontFamily,
+  },
+  profileCard: {
+    minHeight: 215,
+    background: '#FFF7F8',
+    borderRadius: 16,
+    border: '1px solid #E7CFCB',
+    padding: '20px 26px',
+    display: 'grid',
+    gridTemplateColumns: '180px 1fr 300px',
+    alignItems: 'center',
+    gap: 28,
+    boxShadow: '0 12px 28px rgba(30,45,30,0.12)',
+    boxSizing: 'border-box',
+    marginBottom: 26,
+    fontFamily,
+  },
+  loadingBox: {
+    gridColumn: '1 / -1',
+    textAlign: 'center',
+    color: '#6B5247',
+    fontSize: 15,
+    fontWeight: 600,
+    fontFamily,
+  },
+  photoBox: {
+    width: 170,
+    height: 170,
+    borderRadius: '50%',
+    background: '#EAF0EF',
+    overflow: 'hidden',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    justifySelf: 'center',
+    fontFamily,
+  },
+  photo: {
+    width: '100%',
+    height: '100%',
+    objectFit: 'cover',
+  },
+  avatarFallback: {
+    width: '100%',
+    height: '100%',
+    borderRadius: '50%',
+    background: '#EAF0EF',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 78,
+  },
+  childInfo: {
+    minWidth: 0,
+    fontFamily,
+  },
+  childName: {
+    margin: '0 0 8px',
+    color: '#6B5247',
+    fontSize: 27,
+    fontWeight: 700,
+    letterSpacing: '-0.5px',
+    fontFamily,
+  },
+  childMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 20,
+    marginBottom: 16,
+    fontFamily,
+  },
+  genderText: {
+    fontSize: 14,
+    fontWeight: 700,
+    fontFamily,
+  },
+  ageText: {
+    color: '#6B5247',
+    fontSize: 14,
+    fontWeight: 700,
+    fontFamily,
+  },
+  infoGrid: {
+    display: 'grid',
+    gap: 8,
+    fontFamily,
+  },
+  infoRow: {
+    display: 'grid',
+    gridTemplateColumns: '24px 135px 1fr',
+    alignItems: 'center',
+    gap: 8,
+    color: '#6B5247',
+    fontSize: 14,
+    fontFamily,
+  },
+  statusCard: {
+    background: '#D5EFD2',
+    borderRadius: 16,
+    padding: '18px 18px',
+    minHeight: 155,
+    display: 'flex',
+    flexDirection: 'column',
+    justifyContent: 'center',
+    alignItems: 'center',
+    textAlign: 'center',
+    fontFamily,
+  },
+  statusTitle: {
+    margin: '0 0 13px',
+    color: '#4E724D',
+    fontSize: 20,
+    fontWeight: 700,
+    fontFamily,
+  },
+  statusBadge: {
+    borderRadius: 999,
+    padding: '9px 24px',
+    fontSize: 19,
+    fontWeight: 800,
+    marginBottom: 13,
+    fontFamily,
+  },
+  statusDesc: {
+    margin: '0 0 12px',
+    color: '#6B5247',
+    fontSize: 13,
+    fontWeight: 600,
+    lineHeight: 1.5,
+    fontFamily,
+  },
+  addButton: {
+    minHeight: 32,
+    border: 'none',
+    borderRadius: 8,
+    background: '#FFFFFF',
+    color: '#4E724D',
+    padding: '0 16px',
+    fontSize: 13,
+    fontWeight: 800,
+    cursor: 'pointer',
+    fontFamily,
+  },
+  formCard: {
+    background: '#FFF7F8',
+    borderRadius: 16,
+    border: '1px solid #E7CFCB',
+    padding: 22,
+    boxShadow: '0 12px 28px rgba(30,45,30,0.12)',
+    marginBottom: 26,
+    fontFamily,
+  },
+  formTitle: {
+    margin: '0 0 18px',
+    color: '#6B5247',
+    fontSize: 20,
+    fontWeight: 700,
+    fontFamily,
+  },
+  formGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+    gap: '18px 26px',
+    fontFamily,
+  },
+  formGroup: {
+    fontFamily,
+  },
+  fullColumn: {
+    gridColumn: '1 / -1',
+    fontFamily,
+  },
+  label: {
+    display: 'block',
+    marginBottom: 8,
+    color: '#6B5247',
+    fontSize: 13,
+    fontWeight: 700,
+    fontFamily,
+  },
+  input: {
+    width: '100%',
+    height: 42,
+    border: '1px solid #E6C9B6',
+    borderRadius: 8,
+    background: '#F3DED2',
+    color: '#6B5247',
+    outline: 'none',
+    padding: '0 12px',
+    fontSize: 14,
+    fontWeight: 500,
+    boxSizing: 'border-box',
+    fontFamily,
+  },
+  textarea: {
+    width: '100%',
+    minHeight: 90,
+    border: '1px solid #E6C9B6',
+    borderRadius: 8,
+    background: '#F3DED2',
+    color: '#6B5247',
+    outline: 'none',
+    padding: 12,
+    fontSize: 14,
+    fontWeight: 500,
+    boxSizing: 'border-box',
+    resize: 'vertical',
+    fontFamily,
+  },
+  formActions: {
+    marginTop: 18,
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: 12,
+    fontFamily,
+  },
+  cancelButton: {
+    minHeight: 36,
+    minWidth: 100,
+    border: 'none',
+    borderRadius: 999,
+    background: '#FFFFFF',
+    color: '#6B5247',
+    fontSize: 14,
+    fontWeight: 700,
+    cursor: 'pointer',
+    fontFamily,
+  },
+  saveButton: {
+    minHeight: 36,
+    minWidth: 120,
+    border: 'none',
+    borderRadius: 999,
+    background: '#FFFFFF',
+    color: '#4E724D',
+    fontSize: 14,
+    fontWeight: 800,
+    cursor: 'pointer',
+    fontFamily,
+  },
+  chartSection: {
+    background: '#F6F0EF',
+    margin: '0 -34px',
+    padding: '26px 34px',
+    fontFamily,
+  },
+  chartGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+    gap: 22,
+    marginBottom: 22,
+    fontFamily,
+  },
+  chartCard: {
+    background: '#FFF7F8',
+    border: '1px solid #E7CFCB',
+    borderRadius: 12,
+    padding: 16,
+    boxShadow: '0 8px 18px rgba(30,45,30,0.08)',
+    fontFamily,
+  },
+  chartHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 10,
+    fontFamily,
+  },
+  chartTitle: {
+    margin: 0,
+    color: '#6B5247',
+    fontSize: 14,
+    fontWeight: 800,
+    fontFamily,
+  },
+  smallInfo: {
+    color: '#91A49A',
+    fontSize: 13,
+    fontFamily,
+  },
+  chartStatus: {
+    display: 'inline-flex',
+    marginTop: 8,
+    background: '#C8FDB6',
+    color: '#4E724D',
+    borderRadius: 999,
+    padding: '4px 16px',
+    fontSize: 12,
+    fontWeight: 800,
+    fontFamily,
+  },
+  chartSvg: {
+    width: '100%',
+    height: 190,
+    display: 'block',
+    marginTop: 10,
+  },
+  chartLegend: {
+    color: '#4E724D',
+    fontSize: 11,
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    gap: 6,
+    fontFamily,
+  },
+  legendLine: {
+    width: 20,
+    height: 2,
+    background: '#4DBA7A',
+    display: 'inline-block',
+  },
+  infoBoxGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: 22,
+    fontFamily,
+  },
+  graphInfoBox: {
+    display: 'flex',
+    gap: 16,
+    color: '#6B5247',
+    fontFamily,
+  },
+  graphInfoIcon: {
+    fontSize: 48,
+    color: '#6B5247',
+    flexShrink: 0,
+  },
+  zscoreBox: {
+    color: '#6B5247',
+    fontFamily,
+  },
+  infoBoxTitle: {
+    margin: '0 0 6px',
+    color: '#6B5247',
+    fontSize: 15,
+    fontWeight: 800,
+    fontFamily,
+  },
+  infoBoxText: {
+    margin: 0,
+    color: '#6B5247',
+    fontSize: 13,
+    lineHeight: 1.5,
+    fontWeight: 500,
+    fontFamily,
+  },
+  zscoreItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 7,
+    color: '#6B5247',
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily,
+  },
+  zscoreColor: {
+    width: 18,
+    height: 12,
+    borderRadius: 3,
+    display: 'inline-block',
+  },
+  historySection: {
+    background: '#F6F0EF',
+    margin: '0 -34px',
+    padding: '4px 34px 36px',
+    fontFamily,
+  },
+  tableCard: {
+    background: '#FFF7F8',
+    border: '1px solid #E7CFCB',
+    borderRadius: 12,
+    padding: 16,
+    boxShadow: '0 8px 18px rgba(30,45,30,0.08)',
+    overflowX: 'auto',
+    fontFamily,
+  },
+  table: {
+    width: '100%',
+    borderCollapse: 'collapse',
+    tableLayout: 'fixed',
+    fontFamily,
+  },
+  th: {
+    textAlign: 'center',
+    color: '#6B5247',
+    fontSize: 13,
+    fontWeight: 800,
+    padding: '12px 8px',
+    borderBottom: '1px solid #E7CFCB',
+    fontFamily,
+  },
+  td: {
+    textAlign: 'center',
+    color: '#6B5247',
+    fontSize: 13,
+    fontWeight: 500,
+    padding: '11px 8px',
+    borderBottom: '1px solid #F0DCDC',
+    fontFamily,
+  },
+  emptyTd: {
+    textAlign: 'center',
+    color: '#6B5247',
+    fontSize: 14,
+    fontWeight: 600,
+    padding: 24,
+    fontFamily,
+  },
+  clickableRow: {
+    cursor: 'pointer',
+  },
+  tableStatus: {
+    display: 'inline-flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    minHeight: 24,
+    padding: '0 14px',
+    borderRadius: 999,
+    background: '#C8FDB6',
+    color: '#4E724D',
+    fontSize: 12,
+    fontWeight: 800,
+    fontFamily,
+  },
+  actionButtons: {
+    display: 'flex',
+    justifyContent: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+  },
+  recommendButton: {
+    border: 'none',
+    background: '#E9D5FF',
+    color: '#7C3AED',
+    borderRadius: 8,
+    padding: '6px 12px',
+    cursor: 'pointer',
+    fontSize: 12,
+    fontWeight: 700,
+  },
+  editButton: {
+    border: 'none',
+    background: '#EAF4EA',
+    borderRadius: 6,
+    padding: '4px 8px',
+    cursor: 'pointer',
+    fontSize: 14,
+    lineHeight: 1,
+  },
+  deleteButton: {
+    border: 'none',
+    background: '#FEE2E2',
+    borderRadius: 6,
+    padding: '4px 8px',
+    cursor: 'pointer',
+    fontSize: 14,
+    lineHeight: 1,
+  },
+  generateBar: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: 18,
+  },
+  generateButton: {
+    border: 'none',
+    background: '#E9D5FF',
+    color: '#7C3AED',
+    borderRadius: 16,
+    padding: '14px 22px',
+    cursor: 'pointer',
+    fontSize: 15,
+    fontWeight: 800,
+    boxShadow: '0 8px 18px rgba(124,58,237,0.18)',
+  },
+
+  recommendationGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr',
+    gap: 14,
+    marginBottom: 20,
+  },
+  recommendationItem: {
+    display: 'grid',
+    gridTemplateColumns: '72px 1fr',
+    gap: 18,
+    alignItems: 'flex-start',
+    background: '#FFFFFF',
+    border: '1px solid #E7CFCB',
+    borderRadius: 18,
+    padding: 18,
+    boxShadow: '0 6px 16px rgba(30,45,30,0.06)',
+  },
+  recommendationIconWrap: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+  },
+  recommendationIcon: {
+    width: 54,
+    height: 54,
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 28,
+    flexShrink: 0,
+  },
+  recommendationContent: {
+    minWidth: 0,
+  },
+  recommendationItemTitle: {
+    margin: '0 0 8px',
+    color: '#6B5247',
+    fontSize: 18,
+    fontWeight: 800,
+    fontFamily,
+  },
+  recommendationList: {
+    margin: 0,
+    paddingLeft: 18,
+    color: '#6B5247',
+    fontSize: 14,
+    lineHeight: 1.65,
+    fontWeight: 500,
+    fontFamily,
+  },
+  recommendationListItem: {
+    marginBottom: 4,
+  },
+  saveRecommendationContainer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    marginTop: 30,
+  },
+  saveRecommendationButton: {
+    border: 'none',
+    background: '#E9D5FF',
+    color: '#9333EA',
+    borderRadius: 16,
+    padding: '16px 28px',
+    fontSize: 16,
+    fontWeight: 700,
+    cursor: 'pointer',
+    boxShadow: '0 6px 16px rgba(147,51,234,0.25)',
+  },
+
+  recommendationHeader: {
+  display: 'flex',
+  justifyContent: 'space-between',
+  alignItems: 'center',
+  marginBottom: 8,
+},
+
+recommendationEditButton: {
+  border: 'none',
+  background: '#F3E8FF',
+  color: '#7C3AED',
+  width: 34,
+  height: 34,
+  borderRadius: 10,
+  cursor: 'pointer',
+  fontSize: 16,
+},
 }

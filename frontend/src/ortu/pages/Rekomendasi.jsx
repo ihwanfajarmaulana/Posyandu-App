@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import API from '../api'
 import { SharedSidebar, Icon, ProfilePopup } from '../components/SidebarLayout'
 import { GreenHeaderDecorations, CreamSectionDecorations } from '../components/Decorations'
+import useRefreshOnFocus from '../hooks/useRefreshOnFocus'
 
 /* ──────────────────────────────────────────────────────────────────────────
    REKOMENDASI page — comprehensive view for a child's growth recommendations.
@@ -112,6 +113,7 @@ export default function Rekomendasi() {
   const [loading, setLoading] = useState(true)
   const [showProfile, setShowProfile] = useState(false)
   const user = JSON.parse(localStorage.getItem('user') || '{}')
+  const refresh = useRefreshOnFocus()
 
   useEffect(() => {
     let cancelled = false
@@ -174,7 +176,7 @@ export default function Rekomendasi() {
     })
 
     return () => { cancelled = true }
-  }, [id])
+  }, [id, refresh])
 
   return (
     <div style={s.page}>

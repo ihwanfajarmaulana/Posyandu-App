@@ -5,7 +5,7 @@ const bcrypt = require('bcryptjs');
 const User = sequelize.define('User', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
   nama: { type: DataTypes.STRING(100), allowNull: false },
-  email: { type: DataTypes.STRING(100), allowNull: false, unique: true },
+  email: { type: DataTypes.STRING(100), allowNull: false, unique: true, validate: { isEmail: true } },
   password: { type: DataTypes.STRING(255), allowNull: false },
   role: { type: DataTypes.ENUM('orang_tua', 'admin'), allowNull: false, defaultValue: 'orang_tua' },
   no_telepon: { type: DataTypes.STRING(20) },
@@ -13,10 +13,21 @@ const User = sequelize.define('User', {
   is_active: { type: DataTypes.BOOLEAN, defaultValue: true },
 }, {
   tableName: 'users',
+  hooks: {
+    // Hash the password every time it's set/changed — never store plain text.
+    beforeCreate: async (user) => {
+      if (user.password) user.password = await bcrypt.hash(user.password, 10);
+    },
+    beforeUpdate: async (user) => {
+      if (user.changed('password')) user.password = await bcrypt.hash(user.password, 10);
+    },
+  },
 });
 
-User.prototype.validatePassword = function (plain) {
-  return this.password === plain;
+// bcrypt.compare is async — controllers MUST await this.
+User.prototype.validatePassword = async function (plain) {
+  if (!plain || !this.password) return false;
+  return bcrypt.compare(plain, this.password);
 };
 
 const Balita = sequelize.define('Balita', {
@@ -33,13 +44,100 @@ const Balita = sequelize.define('Balita', {
 }, { tableName: 'balita' });
 
 const Kunjungan = sequelize.define('Kunjungan', {
-  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
-  balita_id: { type: DataTypes.INTEGER, allowNull: false },
-  admin_id: { type: DataTypes.INTEGER, allowNull: false },
-  tanggal_kunjungan: { type: DataTypes.DATEONLY, allowNull: false },
-  jenis_kunjungan: { type: DataTypes.ENUM('rutin', 'imunisasi', 'konsultasi', 'lainnya'), defaultValue: 'rutin' },
-  catatan: { type: DataTypes.TEXT },
-}, { tableName: 'kunjungan' });
+  id: {
+    type: DataTypes.INTEGER,
+    primaryKey: true,
+    autoIncrement: true,
+  },
+  balita_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+  admin_id: {
+    type: DataTypes.INTEGER,
+    allowNull: false,
+  },
+
+  // Informasi Kunjungan
+  tanggal_kunjungan: {
+    type: DataTypes.DATEONLY,
+    allowNull: false,
+  },
+  jam_kunjungan: {
+    type: DataTypes.TIME,
+    allowNull: true,
+  },
+  jenis_kunjungan: {
+    type: DataTypes.ENUM('rutin', 'imunisasi', 'konsultasi', 'lainnya'),
+    defaultValue: 'rutin',
+  },
+  status: {
+    type: DataTypes.ENUM('hadir', 'terlewat'),
+    defaultValue: 'hadir',
+  },
+  petugas: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+
+  // Pemeriksaan Fisik
+  berat_badan: {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: true,
+  },
+  tinggi_badan: {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: true,
+  },
+  lingkar_kepala: {
+    type: DataTypes.DECIMAL(5, 2),
+    allowNull: true,
+  },
+  status_gizi: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+  },
+  suhu_tubuh: {
+    type: DataTypes.DECIMAL(4, 1),
+    allowNull: true,
+  },
+
+  // Data tambahan dari form
+  imunisasi: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+  kondisi: {
+    type: DataTypes.JSON,
+    allowNull: true,
+  },
+
+  // Tindak lanjut
+  jadwal_berikutnya: {
+    type: DataTypes.DATEONLY,
+    allowNull: true,
+  },
+  imunisasi_berikutnya: {
+    type: DataTypes.STRING(100),
+    allowNull: true,
+  },
+  lokasi_posyandu: {
+    type: DataTypes.STRING(200),
+    allowNull: true,
+  },
+  pengingat_orangtua: {
+    type: DataTypes.BOOLEAN,
+    defaultValue: false,
+  },
+
+  // Catatan Petugas
+  catatan: {
+    type: DataTypes.TEXT,
+    allowNull: true,
+  },
+  }, {
+    tableName: 'kunjungan',
+  })
 
 const Pertumbuhan = sequelize.define('Pertumbuhan', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
@@ -128,9 +226,25 @@ const Penanganan = sequelize.define('Penanganan', {
 User.hasMany(Balita, { foreignKey: 'user_id', as: 'balita' });
 Balita.belongsTo(User, { foreignKey: 'user_id', as: 'orang_tua' });
 
-Balita.hasMany(Kunjungan, { foreignKey: 'balita_id', as: 'kunjungan' });
-Kunjungan.belongsTo(Balita, { foreignKey: 'balita_id', as: 'balita' });
-Kunjungan.belongsTo(User, { foreignKey: 'admin_id', as: 'admin' });
+Balita.hasMany(Kunjungan, {
+  foreignKey: 'balita_id',
+  as: 'kunjungan',
+})
+
+Kunjungan.belongsTo(Balita, {
+  foreignKey: 'balita_id',
+  as: 'balita',
+})
+
+User.hasMany(Kunjungan, {
+  foreignKey: 'admin_id',
+  as: 'kunjungan_dibuat',
+})
+
+Kunjungan.belongsTo(User, {
+  foreignKey: 'admin_id',
+  as: 'admin',
+})
 
 Balita.hasMany(Pertumbuhan, { foreignKey: 'balita_id', as: 'riwayat_pertumbuhan' });
 Pertumbuhan.belongsTo(Balita, { foreignKey: 'balita_id', as: 'balita' });
