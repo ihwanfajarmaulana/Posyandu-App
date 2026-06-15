@@ -695,58 +695,29 @@ export default function TumbuhKembang() {
     setShowRecommendation(false)
   }
 
-  const handleSaveRecommendation = () => {
-  if (!selectedMeasurement) return
+  const handleSaveRecommendation = async () => {
+    if (!selectedMeasurement) return
 
-  const recommendation = buildRecommendation(selectedMeasurement, balita)
+    const recommendation = buildRecommendation(selectedMeasurement, balita)
+    const konten = JSON.stringify(recommendation)
+    const rekomendasiId = location.state?.rekomendasiId
 
-  const existing =
-    JSON.parse(localStorage.getItem('rekomendasi_balita') || '[]')
-
-  const newRecommendation = {
-    id: Date.now(),
-    childId: balita?.id || id,
-    nama_anak: balita?.nama || '-',
-    jenis_kelamin: balita?.jenis_kelamin || 'L',
-    usia: formatUsia(balita?.usia_bulan),
-    ibu: balita?.nama_ibu || '-',
-    tanggal: selectedMeasurement.tanggal_pengukuran,
-    status_gizi: labelStatusGizi(selectedMeasurement.status_gizi),
-    dibuat_oleh: user?.nama || 'Petugas',
-    recommendation,
+    try {
+      if (isEditRecommendation && rekomendasiId) {
+        await API.put(`/rekomendasi/${rekomendasiId}`, { konten })
+        alert('Rekomendasi berhasil diperbarui.')
+      } else {
+        await API.post(`/balita/${balita?.id || id}/rekomendasi`, {
+          konten,
+          is_visible_to_ortu: true,
+        })
+        alert('Rekomendasi berhasil disimpan.')
+      }
+      navigate('/rekomendasi-balita')
+    } catch (err) {
+      alert('Gagal menyimpan rekomendasi: ' + (err.response?.data?.message || err.message))
+    }
   }
-
-  if (isEditRecommendation) {
-    const updated = existing.map((item) =>
-      item.childId === (balita?.id || id)
-        ? {
-            ...item,
-            recommendation,
-            tanggal: selectedMeasurement.tanggal_pengukuran,
-            status_gizi: labelStatusGizi(selectedMeasurement.status_gizi),
-          }
-        : item
-    )
-
-    localStorage.setItem(
-      'rekomendasi_balita',
-      JSON.stringify(updated)
-    )
-
-    alert('Rekomendasi berhasil diperbarui.')
-  } else {
-    existing.unshift(newRecommendation)
-
-    localStorage.setItem(
-      'rekomendasi_balita',
-      JSON.stringify(existing)
-    )
-
-    alert('Rekomendasi berhasil disimpan.')
-  }
-
-  navigate('/rekomendasi-balita')
-}
 
   const recommendation = selectedMeasurement
     ? buildRecommendation(selectedMeasurement, balita)

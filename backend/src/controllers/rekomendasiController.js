@@ -1,4 +1,4 @@
-const { Rekomendasi, Balita, Pertumbuhan } = require('../models');
+const { Rekomendasi, Balita, Pertumbuhan, User } = require('../models');
 const { callLLM, buildRekomendasiPrompt } = require('../utils/llmService');
 
 const getByBalita = async (req, res) => {
@@ -60,4 +60,44 @@ const createManual = async (req, res) => {
   }
 };
 
-module.exports = { getByBalita, generate, createManual };
+const getAll = async (req, res) => {
+  try {
+    const data = await Rekomendasi.findAll({
+      include: [
+        { model: Balita, as: 'balita', attributes: ['id', 'nama', 'jenis_kelamin', 'tanggal_lahir', 'nama_ibu'] },
+        { model: User, as: 'pembuat', attributes: ['id', 'nama'] },
+      ],
+      order: [['createdAt', 'DESC']],
+    });
+    return res.json({ success: true, data });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const update = async (req, res) => {
+  try {
+    const rek = await Rekomendasi.findByPk(req.params.id);
+    if (!rek) return res.status(404).json({ success: false, message: 'Rekomendasi tidak ditemukan' });
+    const { konten, is_visible_to_ortu } = req.body;
+    if (konten !== undefined) rek.konten = konten;
+    if (is_visible_to_ortu !== undefined) rek.is_visible_to_ortu = is_visible_to_ortu;
+    await rek.save();
+    return res.json({ success: true, data: rek });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+const remove = async (req, res) => {
+  try {
+    const rek = await Rekomendasi.findByPk(req.params.id);
+    if (!rek) return res.status(404).json({ success: false, message: 'Rekomendasi tidak ditemukan' });
+    await rek.destroy();
+    return res.json({ success: true, message: 'Rekomendasi berhasil dihapus' });
+  } catch (err) {
+    return res.status(500).json({ success: false, message: err.message });
+  }
+};
+
+module.exports = { getByBalita, generate, createManual, getAll, update, remove };

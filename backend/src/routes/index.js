@@ -70,11 +70,14 @@ router.patch('/notifikasi/:id/baca', authenticate, notifikasiCtrl.markRead);
 router.post('/notifikasi/broadcast', authenticate, authorize('admin'), notifikasiCtrl.broadcast);
 
 // REKOMENDASI
+router.get('/rekomendasi', authenticate, authorize('admin'), rekomendasiCtrl.getAll);
 router.get('/balita/:balita_id/rekomendasi', authenticate, rekomendasiCtrl.getByBalita);
 // Alias untuk POV orang tua dari frontend teman
 router.get('/rekomendasi/anak/:balita_id', authenticate, rekomendasiCtrl.getByBalita);
 router.post('/balita/:balita_id/rekomendasi/generate', authenticate, authorize('admin'), rekomendasiCtrl.generate);
 router.post('/balita/:balita_id/rekomendasi', authenticate, authorize('admin'), rekomendasiCtrl.createManual);
+router.put('/rekomendasi/:id', authenticate, authorize('admin'), rekomendasiCtrl.update);
+router.delete('/rekomendasi/:id', authenticate, authorize('admin'), rekomendasiCtrl.remove);
 
 // CHAT
 router.get('/chat/:balita_id', authenticate, chatCtrl.getRiwayat);

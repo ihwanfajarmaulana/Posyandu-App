@@ -1,7 +1,18 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
+import API from '../api'
 
 const fontFamily = '"Segoe UI", Arial, Helvetica, sans-serif'
+
+const calcUsia = (tanggalLahir) => {
+  if (!tanggalLahir) return '-'
+  const lahir = new Date(tanggalLahir)
+  const bulan = (new Date().getFullYear() - lahir.getFullYear()) * 12 + (new Date().getMonth() - lahir.getMonth())
+  if (bulan < 12) return bulan + ' Bulan'
+  const th = Math.floor(bulan / 12)
+  const sisa = bulan % 12
+  return sisa === 0 ? th + ' Tahun' : th + ' Tahun ' + sisa + ' Bulan'
+}
 
 // Sama persis dengan buildRecommendation di TumbuhKembang.jsx
 const buildRecommendation = (statusGizi, usiaBulan) => {
@@ -222,34 +233,59 @@ export default function RekomendasiBalita() {
   const [data, setData] = useState([])
   const [search, setSearch] = useState('')
   const [viewItem, setViewItem] = useState(null)
+  const [loadingData, setLoadingData] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
-  const loadData = () => {
-    const saved = JSON.parse(
-      localStorage.getItem('rekomendasi_balita') || '[]'
-    )
-    setData(saved)
+  const loadData = async () => {
+    setLoadingData(true)
+    setLoadError('')
+    try {
+      const res = await API.get('/rekomendasi')
+      const list = res.data?.data || []
+      const normalized = list.map((item) => {
+        let recommendation = {}
+        try { recommendation = JSON.parse(item.konten) } catch { recommendation = {} }
+        return {
+          id: item.id,
+          childId: item.balita_id,
+          nama_anak: item.balita?.nama || '-',
+          jenis_kelamin: item.balita?.jenis_kelamin || 'L',
+          usia: item.balita?.tanggal_lahir ? calcUsia(item.balita.tanggal_lahir) : '-',
+          ibu: item.balita?.nama_ibu || '-',
+          tanggal: item.updatedAt ? new Date(item.updatedAt).toLocaleDateString('id-ID') : '-',
+          dibuat_oleh: item.pembuat?.nama || '-',
+          recommendation,
+        }
+      })
+      setData(normalized)
+    } catch (err) {
+      setLoadError(err.response?.data?.message || err.message || 'Gagal memuat data rekomendasi.')
+      setData([])
+    } finally {
+      setLoadingData(false)
+    }
   }
 
   useEffect(() => {
     loadData()
   }, [])
 
-  const handleDelete = (id) => {
+  const handleDelete = async (id) => {
     const confirmDelete = window.confirm('Hapus rekomendasi ini?')
     if (!confirmDelete) return
-
-    const filtered = data.filter((item) => item.id !== id)
-    localStorage.setItem('rekomendasi_balita', JSON.stringify(filtered))
-    setData(filtered)
-
-    if (viewItem?.id === id) setViewItem(null)
+    try {
+      await API.delete(`/rekomendasi/${id}`)
+      setData((prev) => prev.filter((item) => item.id !== id))
+      if (viewItem?.id === id) setViewItem(null)
+    } catch (err) {
+      alert('Gagal menghapus: ' + (err.response?.data?.message || err.message))
+    }
   }
 
   // Tombol pensil: navigate ke TumbuhKembang dengan mode edit rekomendasi
   const handleUpdate = (item) => {
-    const childId = item.childId
-    if (childId) {
-      navigate(`/tumbuh-kembang/${childId}`, {
+    if (item.childId) {
+      navigate(`/tumbuh-kembang/${item.childId}`, {
         state: { isEditMode: true, rekomendasiId: item.id },
       })
     } else {
@@ -373,7 +409,23 @@ export default function RekomendasiBalita() {
                   </tr>
                 ))}
 
-                {filteredData.length === 0 && (
+                {loadingData && (
+                  <tr>
+                    <td colSpan={4} style={{ ...styles.td, color: '#aaa', textAlign: 'center', padding: 32 }}>
+                      Memuat data...
+                    </td>
+                  </tr>
+                )}
+
+                {!loadingData && loadError && (
+                  <tr>
+                    <td colSpan={4} style={{ ...styles.td, color: '#c0392b', textAlign: 'center', padding: 32 }}>
+                      ⚠️ {loadError}
+                    </td>
+                  </tr>
+                )}
+
+                {!loadingData && !loadError && filteredData.length === 0 && (
                   <tr>
                     <td colSpan={4} style={{ ...styles.td, color: '#aaa', textAlign: 'center', padding: 32 }}>
                       Belum ada data rekomendasi.
@@ -386,7 +438,7 @@ export default function RekomendasiBalita() {
             <div style={styles.generateWrap}>
               <button
                 style={styles.generateButton}
-                onClick={() => navigate('/tumbuh-kembang')}
+                onClick={() => navigate('/daftar-balita')}
               >
                 ✨ Generate Baru
               </button>

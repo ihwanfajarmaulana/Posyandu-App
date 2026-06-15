@@ -37,48 +37,84 @@ const colors = {
   blueSoft: '#DBEAFE',
 }
 
-/* ─── Fallback content used when backend endpoints aren't available yet ─── */
 
-const rekomendasiFallback = [
-  {
-    icon: '🍗',
-    title: 'Perbanyak konsumsi protein hewani',
-    desc: 'Perbanyak konsumsi telur, ikan, daging, tempe, dan tahu untuk sebanyak 2-3 kali sehari untuk membantu pertumbuhan anak',
-  },
-  {
-    icon: '🍩',
-    title: 'Mengurangi Jajanan Manis dan Instan',
-    desc: 'Batasi konsumsi makanan manis dan instan, maksimal 1-2 kali seminggu, agar kebutuhan gizi anak tetap terjaga.',
-  },
-  {
-    icon: '💧',
-    title: 'Mencukupi Kebutuhan Air Putih',
-    desc: 'Pastikan anak minum air putih 6-8 gelas sehari agar tubuh tetap sehat dan terhidrasi.',
-  },
-  {
-    icon: '🍳',
-    title: 'Membiasakan Sarapan Sehat',
-    desc: 'Biasakan anak sarapan seperti nasi, telur, susu, atau buah setiap pagi agar energi dan kebutuhan nutrisinya terpenuhi.',
-  },
+const JENIS_MASALAH_ICON = {
+  kurang_berat_badan: '⚖️',
+  kurang_tinggi_badan: '📏',
+  stunting: '📊',
+  gizi_buruk: '🏥',
+  lainnya: '📝',
+}
+
+function parsePenangananList(penList) {
+  // Ambil record terbaru (penList sudah diurutkan DESC)
+  const latest = penList[0]
+  if (!latest) return []
+
+  let parsed = null
+  try { parsed = JSON.parse(latest.tindakan) } catch { /* plain text */ }
+
+  if (parsed?.checklist_orang_tua && Array.isArray(parsed.checklist_orang_tua)) {
+    return parsed.checklist_orang_tua.map((item) => ({
+      icon: item.icon || '✅',
+      title: item.title || 'Penanganan',
+      desc: item.desc || '',
+    }))
+  }
+
+  // fallback: tindakan berupa teks biasa
+  return [{
+    icon: JENIS_MASALAH_ICON[latest.jenis_masalah] || '📝',
+    title: String(latest.tindakan || 'Penanganan').trim(),
+    desc: latest.perkembangan || '',
+  }]
+}
+
+/* ─── Ekstrak rekomendasi_orang_tua dari tindakan penanganan ─── */
+function extractRekomendasiFromPenanganan(penList) {
+  const latest = penList[0]
+  if (!latest) return []
+  let parsed = null
+  try { parsed = JSON.parse(latest.tindakan) } catch { }
+  if (parsed?.rekomendasi_orang_tua && Array.isArray(parsed.rekomendasi_orang_tua)) {
+    return parsed.rekomendasi_orang_tua.map((item) => ({
+      icon: item.icon || '📌',
+      title: item.title || 'Rekomendasi',
+      desc: item.desc || '',
+    }))
+  }
+  return []
+}
+
+/* ─── Parse rekomendasi dari backend ke format {icon, title, desc} ─── */
+const KATEGORI_MAP = [
+  { key: 'nutrisi',   icon: '🥗', title: 'Nutrisi' },
+  { key: 'aktivitas', icon: '🏃', title: 'Aktivitas' },
+  { key: 'imunisasi', icon: '💉', title: 'Imunisasi' },
+  { key: 'pantauan',  icon: '📊', title: 'Pantauan' },
 ]
 
-const penangananFallback = [
-  {
-    icon: '🍲',
-    title: 'Meningkatkan porsi makan',
-    desc: 'Memberi anak makan dengan porsi yang lebih banyak daripada biasanya.',
-  },
-  {
-    icon: '🥛',
-    title: 'Rutin Memberikan Susu',
-    desc: 'Berikan susu secara rutin sesuai usia dan kebutuhan anak. (Formula, UHT, UBM)',
-  },
-  {
-    icon: '🏥',
-    title: 'Rutin Mengikuti Kegiatan Posyandu',
-    desc: 'Ikuti pemeriksaan rutin di posyandu guna memantau kesehatan dan pertumbuhan anak.',
-  },
-]
+function parseRekomendasiList(rekList) {
+  const items = []
+  rekList.forEach((rek) => {
+    let parsed = null
+    try { parsed = JSON.parse(rek.konten) } catch { /* plain text */ }
+
+    if (parsed && typeof parsed === 'object') {
+      KATEGORI_MAP.forEach(({ key, icon, title }) => {
+        const arr = parsed[key]
+        if (Array.isArray(arr) && arr.length > 0) {
+          items.push({ icon, title, desc: arr.join(' • ') })
+        }
+      })
+    } else {
+      // plain text dari LLM — tampilkan langsung
+      const teks = (rek.konten || '').trim()
+      if (teks) items.push({ icon: '📌', title: 'Rekomendasi', desc: teks })
+    }
+  })
+  return items
+}
 
 /* ─── Helper: calculate age string ─── */
 function calcUsia(tanggalLahir) {
@@ -108,8 +144,8 @@ export default function Rekomendasi() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [anak, setAnak] = useState(null)
-  const [rekomendasi, setRekomendasi] = useState(rekomendasiFallback)
-  const [penanganan, setPenanganan] = useState(penangananFallback)
+  const [rekomendasi, setRekomendasi] = useState([])
+  const [penanganan, setPenanganan] = useState([])
   const [loading, setLoading] = useState(true)
   const [showProfile, setShowProfile] = useState(false)
   const user = JSON.parse(localStorage.getItem('user') || '{}')
@@ -151,21 +187,28 @@ export default function Rekomendasi() {
         if (!cancelled) setAnak(chosen)
       }
 
-      // 3. Try to fetch recommendations for this child from backend.
-      // If the endpoint doesn't exist, we keep the fallback list.
+      // 3. Try to fetch recommendations from dedicated rekomendasi table.
+      let rekLoadedFromApi = false
       try {
         const rek = await API.get('/rekomendasi/anak/' + chosen.id)
         const rekList = rek.data?.data || []
-        if (!cancelled && rekList.length > 0) setRekomendasi(rekList)
-      } catch {
-        // backend may not have this endpoint yet — fallback content stays
-      }
+        if (!cancelled && rekList.length > 0) {
+          rekLoadedFromApi = true
+          setRekomendasi(parseRekomendasiList(rekList))
+        }
+      } catch { /* endpoint belum ada atau error — lanjut ke penanganan */ }
 
-      // 4. Try to fetch penanganan (actions parents already did)
+      // 4. Try to fetch penanganan; juga ekstrak rekomendasi_orang_tua jika API tabel rekomendasi kosong
       try {
         const pen = await API.get('/penanganan/anak/' + chosen.id)
         const penList = pen.data?.data || []
-        if (!cancelled && penList.length > 0) setPenanganan(penList)
+        if (!cancelled && penList.length > 0) {
+          setPenanganan(parsePenangananList(penList))
+          if (!rekLoadedFromApi) {
+            const rekFromPen = extractRekomendasiFromPenanganan(penList)
+            if (!cancelled && rekFromPen.length > 0) setRekomendasi(rekFromPen)
+          }
+        }
       } catch {
         // fallback stays
       }
@@ -293,33 +336,45 @@ export default function Rekomendasi() {
           {/* REKOMENDASI */}
           <div style={{ ...s.rekomendasiSection, position: 'relative', zIndex: 1 }} className="pc-fade-in pc-delay-3">
             <h2 style={s.sectionTitle}>Rekomendasi untuk Mendukung Tumbuh Kembang Anak</h2>
-            <div style={s.rekomendasiList}>
-              {rekomendasi.map((r, i) => (
-                <RekomendasiItem
-                  key={i}
-                  icon={r.icon || '📌'}
-                  title={r.title || r.judul}
-                  desc={r.desc || r.deskripsi}
-                  delay={i + 1}
-                />
-              ))}
-            </div>
+            {rekomendasi.length === 0 ? (
+              <div style={s.emptyState}>
+                Belum ada rekomendasi dari petugas.
+              </div>
+            ) : (
+              <div style={s.rekomendasiList}>
+                {rekomendasi.map((r, i) => (
+                  <RekomendasiItem
+                    key={i}
+                    icon={r.icon || '📌'}
+                    title={r.title || r.judul}
+                    desc={r.desc || r.deskripsi}
+                    delay={i + 1}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {/* PENANGANAN */}
           <div style={{ ...s.penangananSection, position: 'relative', zIndex: 1 }} className="pc-fade-in pc-delay-4">
             <h2 style={s.sectionTitle}>Penanganan yang Sudah Dilakukan Orang Tua</h2>
-            <div style={s.penangananGrid}>
-              {penanganan.map((p, i) => (
-                <PenangananCard
-                  key={i}
-                  icon={p.icon || '✓'}
-                  title={p.title || p.judul}
-                  desc={p.desc || p.deskripsi}
-                  delay={i + 1}
-                />
-              ))}
-            </div>
+            {penanganan.length === 0 ? (
+              <div style={s.emptyState}>
+                Belum ada catatan penanganan dari petugas.
+              </div>
+            ) : (
+              <div style={s.penangananGrid}>
+                {penanganan.map((p, i) => (
+                  <PenangananCard
+                    key={i}
+                    icon={p.icon}
+                    title={p.title}
+                    desc={p.desc}
+                    delay={i + 1}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </section>
       </main>
@@ -772,6 +827,15 @@ const s = {
     marginBottom: 24,
   },
   rekomendasiList: { display: 'flex', flexDirection: 'column', gap: 10 },
+  emptyState: {
+    background: 'rgba(255,255,255,0.6)',
+    borderRadius: 10,
+    padding: '20px 16px',
+    textAlign: 'center',
+    color: '#876D5D',
+    fontSize: 14,
+    fontWeight: 600,
+  },
   rekomItem: {
     background: colors.white, borderRadius: 12,
     padding: '12px 14px', display: 'flex', gap: 12,
